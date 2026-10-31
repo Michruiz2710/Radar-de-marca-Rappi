@@ -1,6 +1,6 @@
 # Radar de Marca: Rappi
 
-Pipeline DataOps de escucha activa que recolecta lo que se dice de Rappi en Google Play, YouTube y noticias, valida y analiza esos datos, alerta cuando algo falla o el sentimiento negativo se dispara, y lo muestra en un dashboard de negocio.
+Pipeline DataOps de escucha activa que recolecta lo que se dice de Rappi en Google Play, YouTube y Reddit, valida y analiza esos datos, alerta cuando algo falla o el sentimiento negativo se dispara, y lo muestra en un dashboard de negocio.
 
 Proyecto grupal del curso **Enfoque DataOps** — Escuela Colombiana de Ingeniería Julio Garavito.
 
