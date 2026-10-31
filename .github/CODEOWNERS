@@ -1,0 +1,39 @@
+# Revisor automático por carpeta (ver la matriz de responsabilidades).
+# Reemplazar @usuario-* por el usuario real de GitHub de cada integrante.
+#   Michelle -> @Michruiz2710
+#   Jonathan -> @usuario-jonathan
+#   Katalina -> @usuario-katalina
+#   Gabriel  -> @usuario-gabriel
+#   Sara     -> @usuario-sara
+
+# Por defecto: la coordinadora del proyecto
+*                               @Michruiz2710
+
+# --- Semana 1 ---
+/infra/docker-compose.yml       @usuario-gabriel
+/Makefile                       @usuario-gabriel
+/src/common/                    @usuario-sara
+/src/ingestion/google_play/     @Michruiz2710
+/src/ingestion/youtube/         @usuario-katalina
+/src/ingestion/news/            @usuario-jonathan
+/data/etiquetas/                @usuario-jonathan
+
+# --- Semana 2 ---
+/flows/                         @usuario-gabriel
+/quality/                       @Michruiz2710
+/src/transform/clean/           @usuario-jonathan
+/src/transform/nlp/             @usuario-katalina
+/.github/workflows/             @usuario-sara
+/config/                        @usuario-sara
+
+# --- Semana 3 ---
+/src/observability/             @usuario-jonathan
+/infra/prometheus/              @usuario-jonathan
+/infra/grafana/                 @usuario-sara
+/scripts/                       @usuario-sara
+/dashboard/                     @Michruiz2710
+/dbt/                           @usuario-katalina
+/docs/                          @usuario-gabriel
+
+# El contrato de datos lo revisa la responsable de Data Quality
+/docs/contrato_datos.md         @usuario-katalina

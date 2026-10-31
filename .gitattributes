@@ -1,0 +1,8 @@
+# Saltos de línea estilo Linux (LF) para todos, sin importar el sistema operativo
+* text=auto eol=lf
+
+# Archivos binarios: no tocar
+*.png binary
+*.jpg binary
+*.zip binary
+*.parquet binary

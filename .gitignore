@@ -1,0 +1,59 @@
+# --- Secretos: nunca se suben ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+client_secret*.json
+
+# --- Datos: no se versionan, salvo la muestra etiquetada ---
+data/*
+!data/etiquetas/
+data/etiquetas/*
+!data/etiquetas/.gitkeep
+!data/etiquetas/README.md
+!data/etiquetas/muestra_200.csv
+*.parquet
+*.jsonl
+*.db
+*.sqlite
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# --- dbt ---
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+
+# --- Great Expectations ---
+quality/uncommitted/
+
+# --- Prefect y logs locales ---
+.prefect/
+logs/
+*.log
+
+# --- Volúmenes locales de Docker ---
+infra/volumes/
+
+# --- Editores y sistema ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
