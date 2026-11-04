@@ -26,4 +26,4 @@ La muestra toma 40 reseñas por estrella para tener casos de todos los tipos; po
 
 ## Estado
 
-Pendiente: etiquetar las 200 reseñas. Hay un valor adicional a los 6 temas, `sin_tema`, por confirmar con Jonathan para P2.4.
+Las etiquetas las hacen a mano Sara (filas 2 a 101) y Gabriel (filas 102 a 201). Hay un valor adicional a los 6 temas, `sin_tema`, por confirmar con Jonathan para P2.4.

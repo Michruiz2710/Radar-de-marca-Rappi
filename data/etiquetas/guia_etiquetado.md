@@ -28,4 +28,4 @@ Estas etiquetas miden la exactitud de P2.4. Etiqueta lo que dice el **texto**, n
 
 **Si hay varios temas**, elige el que motivó la reseña. Una demora es `entregas`; que nadie la resolviera es `soporte`. Un repartidor que no llegó es `entregas`; uno grosero es `repartidores`.
 
-**Cómo trabajar:** Sara y Gabriel etiquetan por separado las primeras 20 filas y comparan; luego se reparten las 180 restantes. No usen un modelo para decidir. Al final, `validar_muestra.py` debe responder `PASA`.
+**Cómo trabajar:** Sara etiqueta las filas 2 a 101 y Gabriel las 102 a 201; cada uno anota su nombre en `etiquetado_por`. No usen un modelo para decidir. Al final, `validar_muestra.py` debe responder `PASA`.
