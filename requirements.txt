@@ -1,0 +1,9 @@
+# Dependencias de Python del proyecto. Cada paquete agrega aquí las suyas, con versión fija.
+
+# --- P1.2 módulo común ---
+pydantic==2.13.5
+minio==7.2.15
+python-dotenv==1.0.1
+
+# --- Pruebas ---
+pytest==9.1.1
