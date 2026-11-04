@@ -69,16 +69,25 @@ Prefect orquesta cada paso · Prometheus y Grafana observan · GitHub Actions pr
 
 Cada carpeta tiene su propio `README.md` con su propósito, el paquete al que pertenece y quién lo revisa.
 
-## Cómo empezar
+## Cómo levantar el proyecto
 
-Requisitos: Docker Desktop, Python 3.11, Git.
+Requisitos: Docker Desktop, Python 3.11, Git y `make`. En Windows, usa Git Bash e instala `make` con `winget install ezwinports.make`.
 
 ```bash
 git clone https://github.com/Michruiz2710/Radar-de-marca-Rappi.git
 cd Radar-de-marca-Rappi
-cp .env.example .env        # completar con los valores reales (nunca subir .env)
-make up                     # disponible cuando se cierre P1.1
+cp .env.example .env        # completa las credenciales (nunca subir .env)
+make up                     # levanta MinIO, Postgres y Prefect
 ```
+
+En `.env`, elige un usuario y una contraseña distintos para MinIO y para Postgres. La contraseña de Postgres no debe tener caracteres como `@`, `:` o `/`.
+
+Cuando termine, abre:
+
+- Consola de MinIO: http://localhost:9001 (con las credenciales de MinIO del `.env`), donde debe aparecer el bucket `radar-rappi`.
+- Interfaz de Prefect: http://localhost:4200.
+
+Otros comandos: `make ps` (estado), `make logs` (logs en vivo), `make down` (apagar, conserva los datos) y `make test` (pruebas). Más detalle, y cómo borrar todos los datos, en [`infra/README.md`](infra/README.md).
 
 ## Cómo trabajamos
 
