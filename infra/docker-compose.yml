@@ -1,0 +1,84 @@
+# Entorno local del proyecto (P1.1): MinIO, Postgres 16 y Prefect.
+# Se usa desde la raíz con `make up` (lee el archivo .env de la raíz).
+# Prometheus, Pushgateway, Grafana y Streamlit se agregan en la Semana 3.
+
+name: radar-rappi
+
+services:
+  # --- Capa raw: almacenamiento de objetos ---
+  # Imagen: MinIO retiró sus imágenes de Docker Hub y Quay en septiembre de 2026.
+  # Usamos Silo (pgsty/silo), un fork comunitario compatible: mismas variables
+  # MINIO_*, mismo comando y misma API S3. Ver https://silo.pigsty.io
+  minio:
+    image: docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Falta MINIO_ROOT_USER en .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Falta MINIO_ROOT_PASSWORD en .env}
+    ports:
+      - "9000:9000" # API S3 (la usan los scrapers)
+      - "9001:9001" # Consola web
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+  # --- Crea el bucket al iniciar y termina (usa la misma librería que src/common) ---
+  minio-init:
+    image: python:3.11-slim
+    depends_on:
+      - minio
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-radar-rappi}
+    volumes:
+      - ./minio:/scripts:ro
+    command: sh -c "pip install --no-cache-dir -q minio==7.2.15 && python /scripts/crear_bucket.py"
+    restart: "no"
+
+  # --- Capas clean y analytics (base POSTGRES_DB) y base propia de Prefect ---
+  postgres:
+    image: postgres:16.6-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Falta POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:-radar}
+      PREFECT_DB_NAME: ${PREFECT_DB_NAME:-prefect}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # -h 127.0.0.1 evita dar por listo el servidor temporal de la inicialización
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  # --- Orquestador ---
+  prefect:
+    image: prefecthq/prefect:3.1.5-python3.11
+    command: prefect server start --host 0.0.0.0 --port 4200
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PREFECT_API_DATABASE_CONNECTION_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${PREFECT_DB_NAME:-prefect}
+      # El navegador abre la UI en localhost:4200 y desde ahí llama a la API
+      PREFECT_UI_API_URL: http://localhost:4200/api
+    ports:
+      - "4200:4200"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  minio_data:
+  postgres_data:
