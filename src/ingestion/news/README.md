@@ -27,8 +27,7 @@ python -m src.ingestion.news.scraper --dry-run
 RAW_BACKEND=local python -m src.ingestion.news.scraper
 
 # Docker
-docker build -f src/ingestion/news/Dockerfile -t radar-news .
-docker run --rm --env-file .env --network <red-de-compose> radar-news
+docker compose -f infra/docker-compose.yml --env-file .env run --rm scraper-news
 ```
 
 En PowerShell, el modo local se activa con `$env:RAW_BACKEND="local"` antes del comando.
@@ -45,6 +44,6 @@ python -m pytest -q tests/news
 
 ## Estado
 
-Probado con el RSS real en modo local. Pendiente de probar con MinIO real y dentro de Docker. Falta agregar el servicio a `infra/docker-compose.yml` cuando exista (P1.1).
+Probado con el RSS real y con el entorno de P1.1 usando `docker compose run --rm scraper-news`.
 
 **Limitaciones:** el RSS no tiene paginación, así que una noticia que entre y salga entre dos corridas se pierde; P2.1 correrá cada 2 horas para reducir ese riesgo. Los enlaces son redirecciones de Google News: si Google cambiara su formato, una noticia ya vista se guardaría otra vez.
