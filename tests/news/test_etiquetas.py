@@ -108,3 +108,20 @@ def test_texto_que_empieza_por_igual_no_es_formula_y_quita_controles(tmp_path):
     destino = tmp_path / "h.xlsx"
     preparar.escribir_hoja([registro], destino)
     assert load_workbook(destino).active["B2"].data_type == "s"
+
+
+def test_excel_de_google_sheets_con_enteros_como_decimales(tmp_path):
+    from openpyxl import load_workbook
+
+    destino = tmp_path / "hoja.xlsx"
+    preparar.escribir_hoja(preparar.seleccionar(resenas()), destino)
+    libro = load_workbook(destino)
+    hoja = libro.active
+    for fila in range(2, 202):
+        hoja.cell(fila, 3).value = float(hoja.cell(fila, 3).value)
+        hoja.cell(fila, 5).value, hoja.cell(fila, 6).value, hoja.cell(fila, 7).value = "positivo", "entregas", "gabriel"
+    libro.save(destino)
+    filas = validar.leer(destino)
+    assert filas[0]["calificacion"] in {"1", "2", "3", "4", "5"}
+    assert validar.validar(filas) == []
+

@@ -21,6 +21,15 @@ _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 _TELEFONO = re.compile(r"(?<!\d)(?:\+?\d[\s-]?){7,}(?!\d)")
 
 
+def _celda(valor) -> str:
+    """Google Sheets exporta los enteros como 3.0; aqui vuelven a ser 3."""
+    if valor is None:
+        return ""
+    if isinstance(valor, float) and valor.is_integer():
+        return str(int(valor))
+    return str(valor)
+
+
 def leer(ruta: Path) -> list[dict]:
     if ruta.suffix.lower() == ".xlsx":
         from openpyxl import load_workbook
@@ -29,7 +38,7 @@ def leer(ruta: Path) -> list[dict]:
         filas = list(hoja.iter_rows(values_only=True))
         encabezado = [str(c) if c is not None else "" for c in filas[0]]
         datos = [f for f in filas[1:] if any(c not in (None, "") for c in f)]
-        return [{k: ("" if v is None else str(v)) for k, v in zip(encabezado, f, strict=False)} for f in datos]
+        return [{k: _celda(v) for k, v in zip(encabezado, f, strict=False)} for f in datos]
     with ruta.open(encoding="utf-8-sig", newline="") as archivo:
         return list(csv.DictReader(archivo))
 
