@@ -1,39 +1,51 @@
-# Revisor automático por carpeta (ver la matriz de responsabilidades).
-# Reemplazar @usuario-* por el usuario real de GitHub de cada integrante.
+# Revisor automático por carpeta, según la matriz de responsabilidades.
+# Si hay dos dueños, basta con la aprobación de cualquiera de los dos.
 #   Michelle -> @Michruiz2710
-#   Jonathan -> @usuario-jonathan
-#   Katalina -> @usuario-katalina
-#   Gabriel  -> @usuario-gabriel
-#   Sara     -> @usuario-sara
+#   Jonathan -> @PalomaresJonatan13
+#   Katalina -> @kataleyva
+#   Gabriel  -> @gabrielr0103
+#   Sara     -> @sarat17
 
-# Por defecto: la coordinadora del proyecto
-*                               @Michruiz2710
+# Por defecto (README, requirements.txt, .env.example, etc.): coordinación + DevOps
+*                                   @Michruiz2710 @gabrielr0103
+
+# Este archivo: nadie cambia quién revisa qué sin que otro lo vea
+/.github/CODEOWNERS                 @gabrielr0103 @Michruiz2710
 
 # --- Semana 1 ---
-/infra/docker-compose.yml       @usuario-gabriel
-/Makefile                       @usuario-gabriel
-/src/common/                    @usuario-sara
-/src/ingestion/google_play/     @Michruiz2710
-/src/ingestion/youtube/         @usuario-katalina
-/src/ingestion/news/            @usuario-jonathan
-/data/etiquetas/                @usuario-jonathan
+/infra/                             @gabrielr0103
+/Makefile                           @gabrielr0103
+/src/common/                        @sarat17
+/tests/test_common.py               @sarat17
+/src/ingestion/google_play/         @Michruiz2710
+/tests/google_play/                 @Michruiz2710
+/src/ingestion/youtube/             @kataleyva
+/tests/youtube/                     @kataleyva
+/src/ingestion/news/                @PalomaresJonatan13
+/tests/news/                        @PalomaresJonatan13
+/data/etiquetas/                    @PalomaresJonatan13
 
 # --- Semana 2 ---
-/flows/                         @usuario-gabriel
-/quality/                       @Michruiz2710
-/src/transform/clean/           @usuario-jonathan
-/src/transform/nlp/             @usuario-katalina
-/.github/workflows/             @usuario-sara
-/config/                        @usuario-sara
+/flows/                             @gabrielr0103
+/tests/flows/                       @gabrielr0103
+/quality/                           @Michruiz2710
+/src/transform/clean/               @PalomaresJonatan13
+/tests/clean/                       @PalomaresJonatan13
+/src/transform/nlp/                 @kataleyva
+/tests/nlp/                         @kataleyva
+/.github/workflows/                 @sarat17
+/config/                            @sarat17
 
 # --- Semana 3 ---
-/src/observability/             @usuario-jonathan
-/infra/prometheus/              @usuario-jonathan
-/infra/grafana/                 @usuario-sara
-/scripts/                       @usuario-sara
-/dashboard/                     @Michruiz2710
-/dbt/                           @usuario-katalina
-/docs/                          @usuario-gabriel
+/src/observability/                 @PalomaresJonatan13
+/tests/observability/               @PalomaresJonatan13
+/infra/prometheus/                  @PalomaresJonatan13
+/infra/grafana/                     @sarat17
+/scripts/                           @sarat17
+/dashboard/                         @Michruiz2710
+/dbt/                               @kataleyva
+/docs/                              @gabrielr0103
+/docs/runbooks/                     @sarat17
 
 # El contrato de datos lo revisa la responsable de Data Quality
-/docs/contrato_datos.md         @usuario-katalina
+/docs/contrato_datos.md             @kataleyva
