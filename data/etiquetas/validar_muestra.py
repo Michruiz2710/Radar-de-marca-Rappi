@@ -8,17 +8,13 @@ from __future__ import annotations
 
 import argparse
 import csv
-import re
 import sys
 from collections import Counter
 from pathlib import Path
 
-COLUMNAS = ["id_registro", "texto", "calificacion", "fecha_publicacion", "sentimiento", "tema", "etiquetado_por"]
-SENTIMIENTOS = {"positivo", "neutro", "negativo"}
-TEMAS = {"entregas", "cobros_y_pagos", "soporte", "precios", "app", "repartidores", "sin_tema"}
+from etiquetas_comun import COLUMNAS, SENTIMIENTOS, TEMAS, tiene_dato_personal
+
 FILAS_ESPERADAS = 200
-_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
-_TELEFONO = re.compile(r"(?<!\d)(?:\+?\d[\s-]?){7,}(?!\d)")
 
 
 def _celda(valor) -> str:
@@ -66,7 +62,7 @@ def validar(filas: list[dict]) -> list[str]:
             errores.append(f"Fila {numero}: sentimiento inválido '{fila['sentimiento']}'")
         if fila["tema"] and fila["tema"] not in TEMAS:
             errores.append(f"Fila {numero}: tema inválido '{fila['tema']}'")
-        if _EMAIL.search(fila["texto"]) or _TELEFONO.search(fila["texto"]):
+        if tiene_dato_personal(fila["texto"]):
             errores.append(f"Fila {numero}: el texto parece tener un correo o teléfono")
     return errores
 

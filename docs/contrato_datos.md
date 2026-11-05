@@ -12,7 +12,7 @@ El contrato está implementado en código en [`src/common/schema.py`](../src/com
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `id_registro` | texto | Sí (calculado) | `<fuente>:<id_original>`, único en todo el sistema | ✓ | ✓ | ✓ | ✓ |
 | `fuente` | texto | Sí | `google_play`, `youtube`, `reddit` o `news` | ✓ | ✓ | ✓ | ✓ |
-| `id_original` | texto | Sí | No vacío. `reviewId`, ID del comentario de YouTube o ID de Reddit (`t3_…` post, `t1_…` comentario) o enlace de la noticia | ✓ | ✓ | ✓ | ✓ |
+| `id_original` | texto | Sí | No vacío. `reviewId`, ID del comentario de YouTube o ID de Reddit (`t3_…` post, `t1_…` comentario) o, en noticias, el `id` del feed de Google News (si falta, el enlace) | ✓ | ✓ | ✓ | ✓ |
 | `texto` | texto | Sí | No vacío. Reseña o comentario; en un post de Reddit, título + cuerpo; en noticias, el titular | ✓ | ✓ | ✓ | ✓ |
 | `fecha_publicacion` | fecha y hora UTC | Sí | No puede estar en el futuro (margen de 10 min) | ✓ | ✓ | ✓ | ✓ |
 | `idioma` | texto | Sí | Código ISO de 2 letras, por defecto `es` | ✓ | ✓ | ✓ | ✓ |
@@ -29,7 +29,7 @@ El contrato está implementado en código en [`src/common/schema.py`](../src/com
 | `fecha_respuesta` | fecha y hora UTC | No | No puede ser anterior a `fecha_publicacion` | ✓ | ✗ | ✗ | ✗ |
 | `id_contenedor` | texto | No | ID del video (YouTube) o del post al que pertenece un comentario (Reddit) | | ✓ | ✓ | |
 | `subreddit` | texto | No | Nombre del subreddit sin `r/`, en minúsculas | ✗ | ✗ | ✓ | ✗ |
-| `url` | texto | No | Enlace al video, al post o a la noticia | | ✓ | ✓ | ✓ |
+| `url` | texto | No | Enlace al video, al post o, en noticias, la redirección de Google News, no la URL del medio | | ✓ | ✓ | ✓ |
 | `medio` | texto | No | Nombre del medio que publica la noticia | ✗ | ✗ | ✗ | ✓ |
 
 ✓ se llena en esa fuente · ✗ prohibido en esa fuente (el registro se rechaza) · vacío: no aplica.
@@ -51,6 +51,8 @@ El contrato está implementado en código en [`src/common/schema.py`](../src/com
 | `analytics` | Postgres, esquema `analytics` | Tablas y vistas de dbt | dbt (P3.4) |
 
 La fecha de la partición es la fecha de extracción en UTC.
+
+El scraper de noticias también escribe `state/fuente=news/enlaces_vistos.json` en el mismo bucket. Es su estado interno, no sigue este esquema y queda fuera de `raw/`, así que quienes lean la capa raw no deben procesarlo.
 
 ## Ejemplo de registro (una línea del archivo)
 

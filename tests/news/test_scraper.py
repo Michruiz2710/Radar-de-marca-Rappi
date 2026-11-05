@@ -126,3 +126,14 @@ def test_url_usa_variables_del_entorno(monkeypatch):
     monkeypatch.setenv("NEWS_GL", "CO")
     url = scraper.construir_url()
     assert "q=Rappi+Colombia" in url and "hl=es-419" in url and "gl=CO" in url and "ceid=CO%3Aes-419" in url
+
+
+def test_usa_el_id_del_feed_y_no_duplica_si_cambia_el_enlace(almacen):
+    feed = b"""<rss version="2.0"><channel><item><title>Noticia - Medio</title><link>%s</link>
+    <guid isPermaLink="false">TOKEN1</guid><pubDate>Mon, 02 Nov 2026 18:30:00 GMT</pubDate></item></channel></rss>"""
+    correr(almacen, feed % b"https://news.google.com/rss/articles/TOKEN1?oc=5", run_id="r1")
+    registro = leer_jsonl(almacen.raiz)[0]
+    assert registro["id_original"] == "TOKEN1"
+    assert registro["url"] == "https://news.google.com/rss/articles/TOKEN1?oc=5"
+    assert correr(almacen, feed % b"https://news.google.com/rss/articles/TOKEN1?oc=6", run_id="r2")["registros_extraidos"] == 0
+

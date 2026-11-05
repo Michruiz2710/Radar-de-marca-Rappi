@@ -16,6 +16,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
+from etiquetas_comun import COLUMNAS, ETIQUETADORES, SENTIMIENTOS, TEMAS, enmascarar
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -25,9 +26,6 @@ CARPETA = Path(__file__).parent
 SEMILLA = 2026
 POR_ESTRELLA = 40
 MIN_PALABRAS = 4
-SENTIMIENTOS = ["positivo", "neutro", "negativo"]
-TEMAS = ["entregas", "cobros_y_pagos", "soporte", "precios", "app", "repartidores", "sin_tema"]
-COLUMNAS = ["id_registro", "texto", "calificacion", "fecha_publicacion", "sentimiento", "tema", "etiquetado_por"]
 
 # Los nombres posibles de cada columna en el CSV de origen.
 ALIAS = {
@@ -37,14 +35,7 @@ ALIAS = {
     "fecha_publicacion": ["fecha_publicacion", "at"],
 }
 
-_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
-_TELEFONO = re.compile(r"(?<!\d)(?:\+?\d[\s-]?){7,}(?!\d)")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")  # Excel no los admite
-
-
-def enmascarar(texto: str) -> str:
-    """La muestra va a Git, así que se tapan correos y teléfonos escritos en la reseña."""
-    return _TELEFONO.sub("[TELEFONO]", _EMAIL.sub("[CORREO]", texto))
 
 
 def normalizar(fila: dict) -> dict | None:
@@ -133,7 +124,7 @@ def escribir_hoja(muestra: list[dict], destino: Path) -> None:
     hoja.freeze_panes = "A2"
 
     ultima = len(muestra) + 1
-    for columna, opciones in (("E", SENTIMIENTOS), ("F", TEMAS), ("G", ["sara", "gabriel"])):
+    for columna, opciones in (("E", SENTIMIENTOS), ("F", TEMAS), ("G", ETIQUETADORES)):
         lista = DataValidation(type="list", formula1=f'"{",".join(opciones)}"', allow_blank=True, showErrorMessage=True)
         lista.error = "Elige un valor de la lista"
         hoja.add_data_validation(lista)

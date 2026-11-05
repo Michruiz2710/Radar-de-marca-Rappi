@@ -100,7 +100,8 @@ def entrada_a_registro(entrada, run_id: str, ahora: datetime) -> RegistroMencion
     try:
         return RegistroMencion(
             fuente=Fuente.NEWS,
-            id_original=enlace,
+            # El id del feed es estable; el enlace lleva parámetros como ?oc=5.
+            id_original=(entrada.get("id") or enlace).strip(),
             texto=limpiar_titular(entrada.get("title") or "", medio),
             fecha_publicacion=datetime(*fecha[:6], tzinfo=UTC),
             medio=medio,

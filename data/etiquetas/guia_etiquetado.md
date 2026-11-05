@@ -24,7 +24,7 @@ Estas etiquetas miden la exactitud de P2.4. Etiqueta lo que dice el **texto**, n
 | `precios` | Costo de productos, domicilio, propinas, promociones, Rappi Prime |
 | `app` | Fallas, errores, lentitud, diseño, actualizaciones, inicio de sesión |
 | `repartidores` | Trato o conducta del repartidor |
-| `sin_tema` | Opinión general sin ninguno de los temas anteriores |
+| `otro` | Opinión general sin ninguno de los temas anteriores |
 
 **Si hay varios temas**, elige el que motivó la reseña. Una demora es `entregas`; que nadie la resolviera es `soporte`. Un repartidor que no llegó es `entregas`; uno grosero es `repartidores`.
 

@@ -1,9 +1,11 @@
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
 
 RAIZ = Path(__file__).resolve().parents[2] / "data" / "etiquetas"
+sys.path.insert(0, str(RAIZ))  # los scripts importan etiquetas_comun
 
 
 def cargar(nombre):
@@ -57,10 +59,18 @@ def test_descarta_cortas_y_textos_repetidos():
     assert len(preparar.seleccionar([repetida, otra] + resenas(40), por_estrella=1)) == 5
 
 
-@pytest.mark.parametrize("texto,tapado", [("escribeme a ana.perez@correo.com ya", "[CORREO]"), ("mi numero 300 123 4567 por favor", "[TELEFONO]")])
-def test_enmascara_datos_personales(texto, tapado):
-    assert tapado in preparar.enmascarar(texto)
-    assert not validar._EMAIL.search(preparar.enmascarar(texto)) and not validar._TELEFONO.search(preparar.enmascarar(texto))
+@pytest.mark.parametrize("telefono", ["300 123 4567", "300.123.4567", "300-123-4567", "3001234567", "+57 300 123 4567"])
+def test_enmascara_telefonos(telefono):
+    assert preparar.enmascarar(f"mi numero {telefono} no llega") == "mi numero [TELEFONO] no llega"
+
+
+def test_enmascara_correos():
+    assert preparar.enmascarar("escribeme a ana.perez@correo.com ya") == "escribeme a [CORREO] ya"
+
+
+@pytest.mark.parametrize("texto", ["el 2026-11-04 no llego", "el 04/11/2026 no llego", "pague 10 000 000 pesos", "costo 1.200.000 pesos", "costo 120.000"])
+def test_no_tapa_fechas_ni_montos(texto):
+    assert preparar.enmascarar(texto) == texto
 
 
 def test_validador_acepta_lo_correcto():
@@ -68,7 +78,7 @@ def test_validador_acepta_lo_correcto():
 
 
 @pytest.mark.parametrize("campo,valor,mensaje", [
-    ("sentimiento", "", "vacíos"), ("tema", "otro", "tema inválido"), ("sentimiento", "bueno", "sentimiento inválido"),
+    ("sentimiento", "", "vacíos"), ("tema", "inventado", "tema inválido"), ("sentimiento", "bueno", "sentimiento inválido"),
     ("calificacion", "7", "calificacion inválida"), ("texto", "llama al 3001234567", "correo o teléfono"),
 ])
 def test_validador_detecta_errores(campo, valor, mensaje):
@@ -125,3 +135,6 @@ def test_excel_de_google_sheets_con_enteros_como_decimales(tmp_path):
     assert filas[0]["calificacion"] in {"1", "2", "3", "4", "5"}
     assert validar.validar(filas) == []
 
+
+def test_muestra_entregada_cumple_el_validador():
+    assert validar.validar(validar.leer(RAIZ / "muestra_200.csv")) == []
