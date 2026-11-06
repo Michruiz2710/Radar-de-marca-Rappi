@@ -69,5 +69,5 @@ python -m pytest -q tests/test_common.py
 
 ## Estado
 
-Terminado en la Semana 1: contrato v1.0.0, hash con sal, escritura local y en MinIO, 33 pruebas.
+Terminado en la Semana 1: contrato v1.1.0, hash con sal, escritura local y en MinIO, 33 pruebas.
 Pendiente: probar la escritura contra el MinIO real cuando esté el `docker-compose` de P1.1.

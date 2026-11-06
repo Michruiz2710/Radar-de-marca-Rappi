@@ -79,6 +79,27 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # --- Scraper de noticias (P1.5): corre una vez y termina ---
+  scraper-news:
+    build:
+      context: ..
+      dockerfile: src/ingestion/news/Dockerfile
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-radar-rappi}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+      RAW_BACKEND: ${RAW_BACKEND:-minio}
+      NEWS_QUERY: ${NEWS_QUERY:-Rappi}
+      NEWS_HL: ${NEWS_HL:-es-419}
+      NEWS_GL: ${NEWS_GL:-CO}
+      RUN_ID: ${RUN_ID:-}
+    depends_on:
+      - minio
+    profiles: ["scrapers"]
+    restart: "no"
+
 volumes:
   minio_data:
   postgres_data:

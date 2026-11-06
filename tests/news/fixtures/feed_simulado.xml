@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Datos inventados para pruebas: no son noticias reales. -->
+<rss version="2.0"><channel><title>"Rappi" - Google News</title>
+<item><title>Noticia de prueba uno sobre Rappi - Medio Ejemplo</title><link>https://news.google.com/rss/articles/PRUEBA1</link><pubDate>Mon, 02 Nov 2026 13:00:00 GMT</pubDate><source url="https://ejemplo.test">Medio Ejemplo</source></item>
+<item><title>Noticia de prueba dos - con guion interno - Otro Medio</title><link>https://news.google.com/rss/articles/PRUEBA2</link><pubDate>Tue, 03 Nov 2026 08:30:00 GMT</pubDate><source url="https://otro.test">Otro Medio</source></item>
+<item><title>Enlace repetido dentro del mismo feed - Medio Ejemplo</title><link>https://news.google.com/rss/articles/PRUEBA1</link><pubDate>Mon, 02 Nov 2026 13:00:00 GMT</pubDate><source url="https://ejemplo.test">Medio Ejemplo</source></item>
+<item><title>Noticia sin fecha que se descarta</title><link>https://news.google.com/rss/articles/PRUEBA3</link></item>
+</channel></rss>

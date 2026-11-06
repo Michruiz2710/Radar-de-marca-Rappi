@@ -114,7 +114,7 @@ def test_fecha_futura_falla():
 
 def test_fuente_desconocida_falla():
     with pytest.raises(ValidationError):
-        resena(fuente="news")
+        resena(fuente="twitter")
 
 
 def test_campo_fuera_del_contrato_falla():
@@ -243,3 +243,34 @@ def test_guardar_en_minio(monkeypatch):
 def test_backend_desconocido_falla():
     with pytest.raises(ValueError):
         guardar_registros([resena()], run_id="r1", backend="s4")
+
+
+def noticia(**cambios) -> RegistroMencion:
+    datos = {
+        "fuente": "news",
+        "id_original": "https://news.google.com/rss/articles/abc",
+        "texto": "Titular de prueba",
+        "fecha_publicacion": AHORA - timedelta(hours=2),
+        "medio": "Medio de prueba",
+        "url": "https://news.google.com/rss/articles/abc",
+        "run_id": "r",
+        "version_scraper": "0.1.0",
+    }
+    datos.update(cambios)
+    return RegistroMencion(**datos)
+
+
+def test_noticia_valida():
+    r = noticia()
+    assert r.id_registro == "news:https://news.google.com/rss/articles/abc"
+    assert r.medio == "Medio de prueba"
+
+
+def test_medio_solo_en_noticias():
+    with pytest.raises(ValidationError):
+        resena(medio="Medio de prueba")
+
+
+def test_calificacion_no_aplica_a_noticias():
+    with pytest.raises(ValidationError):
+        noticia(calificacion=4)
