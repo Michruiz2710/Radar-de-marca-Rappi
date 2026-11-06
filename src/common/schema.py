@@ -1,7 +1,7 @@
 """Contrato de datos: el registro común que producen los 3 scrapers.
 
 Cada reseña de Google Play, comentario de YouTube o publicación/comentario de
-Reddit se convierte en
+Reddit o noticia de Google News se convierte en
 un RegistroMencion antes de guardarse. Si algún campo no cumple el contrato,
 Pydantic lanza un error y el registro NO se guarda.
 
@@ -29,7 +29,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
-VERSION_CONTRATO = "1.0.0"
+VERSION_CONTRATO = "1.1.0"
 
 # Margen para diferencias de reloj entre servidores al validar fechas "futuras".
 _MARGEN_RELOJ = timedelta(minutes=10)
@@ -41,6 +41,7 @@ class Fuente(str, Enum):
     GOOGLE_PLAY = "google_play"
     YOUTUBE = "youtube"
     REDDIT = "reddit"
+    NEWS = "news"
 
 
 def _a_utc(valor: datetime) -> datetime:
@@ -82,7 +83,8 @@ class RegistroMencion(BaseModel):
     fecha_respuesta: datetime | None = None  # solo Google Play
     id_contenedor: str | None = None  # ID del video (YouTube) o del post (comentario de Reddit)
     subreddit: str | None = None  # solo Reddit, sin el prefijo "r/"
-    url: str | None = None  # YouTube y Reddit
+    url: str | None = None  # YouTube, Reddit y noticias
+    medio: str | None = None  # solo noticias: nombre del medio que publica
 
     @computed_field
     @property
@@ -124,6 +126,8 @@ class RegistroMencion(BaseModel):
                     raise ValueError(f"'{campo}' solo aplica a google_play")
         if self.fuente != Fuente.REDDIT and self.subreddit is not None:
             raise ValueError("'subreddit' solo aplica a reddit")
+        if self.fuente != Fuente.NEWS and self.medio is not None:
+            raise ValueError("'medio' solo aplica a news")
         if self.fecha_respuesta and self.fecha_respuesta < self.fecha_publicacion:
             raise ValueError("fecha_respuesta no puede ser anterior a fecha_publicacion")
         return self

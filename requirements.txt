@@ -5,6 +5,12 @@ pydantic==2.13.5
 minio==7.2.15
 python-dotenv==1.0.1
 
+# --- P1.5 scraper de noticias y etiquetado ---
+feedparser==6.0.11
+requests==2.32.5
+openpyxl==3.1.5
+google-play-scraper==1.2.7
+
 # --- Pruebas ---
 pytest==9.1.1
 

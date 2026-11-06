@@ -1,35 +1,36 @@
 # Contrato de datos
 
-**Versión:** 1.0.0 · **Responsable:** Katalina (Data Quality) · **Autora:** Michelle · **Paquete:** P1.2
+**Versión:** 1.1.0 · **Responsable:** Katalina (Data Quality) · **Autora:** Michelle · **Paquete:** P1.2
 
-Las 3 fuentes (Google Play, YouTube y Reddit) se guardan con un mismo esquema, para que la limpieza, las validaciones y el análisis de sentimiento funcionen igual sin importar de dónde vino el dato.
+Las fuentes (Google Play, YouTube y noticias de Google News) se guardan con un mismo esquema, para que la limpieza, las validaciones y el análisis de sentimiento funcionen igual sin importar de dónde vino el dato.
 
 El contrato está implementado en código en [`src/common/schema.py`](../src/common/schema.py) (clase `RegistroMencion`). **Si este documento y el código no coinciden, manda el código** y se corrige el documento.
 
 ## Campos
 
-| Campo | Tipo | Obligatorio | Regla | Google Play | YouTube | Reddit |
-| --- | --- | --- | --- | --- | --- | --- |
-| `id_registro` | texto | Sí (calculado) | `<fuente>:<id_original>`, único en todo el sistema | ✓ | ✓ | ✓ |
-| `fuente` | texto | Sí | `google_play`, `youtube` o `reddit` | ✓ | ✓ | ✓ |
-| `id_original` | texto | Sí | No vacío. `reviewId`, ID del comentario de YouTube o ID de Reddit (`t3_…` post, `t1_…` comentario) | ✓ | ✓ | ✓ |
-| `texto` | texto | Sí | No vacío. Reseña o comentario; en un post de Reddit, título + cuerpo | ✓ | ✓ | ✓ |
-| `fecha_publicacion` | fecha y hora UTC | Sí | No puede estar en el futuro (margen de 10 min) | ✓ | ✓ | ✓ |
-| `idioma` | texto | Sí | Código ISO de 2 letras, por defecto `es` | ✓ | ✓ | ✓ |
-| `pais` | texto | Sí | Código ISO de 2 letras, por defecto `co` | ✓ | ✓ | ✓ |
-| `fecha_extraccion` | fecha y hora UTC | Sí | Por defecto, el momento de crear el registro | ✓ | ✓ | ✓ |
-| `run_id` | texto | Sí | ID de la corrida, generado con `nuevo_run_id()` | ✓ | ✓ | ✓ |
-| `version_scraper` | texto | Sí | Versión del código que extrajo el dato | ✓ | ✓ | ✓ |
-| `version_contrato` | texto | Sí (automático) | Versión de este contrato | ✓ | ✓ | ✓ |
-| `autor_hash` | texto (64) | No | SHA-256 con sal; 64 caracteres hexadecimales. Nunca el nombre real | ✓ | ✓ | ✓ |
-| `calificacion` | entero | No | Entre 1 y 5 | ✓ | ✗ | ✗ |
-| `likes` | entero | No | Mayor o igual a 0 (`thumbsUpCount`, `likeCount` o `score` de Reddit) | ✓ | ✓ | ✓ |
-| `version_app` | texto | No | `reviewCreatedVersion` | ✓ | ✗ | ✗ |
-| `respuesta_marca` | texto | No | Respuesta de Rappi a la reseña | ✓ | ✗ | ✗ |
-| `fecha_respuesta` | fecha y hora UTC | No | No puede ser anterior a `fecha_publicacion` | ✓ | ✗ | ✗ |
-| `id_contenedor` | texto | No | ID del video (YouTube) o del post al que pertenece un comentario (Reddit) | | ✓ | ✓ |
-| `subreddit` | texto | No | Nombre del subreddit sin `r/`, en minúsculas | ✗ | ✗ | ✓ |
-| `url` | texto | No | Enlace al video o al post | | ✓ | ✓ |
+| Campo | Tipo | Obligatorio | Regla | Google Play | YouTube | Reddit | Noticias |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `id_registro` | texto | Sí (calculado) | `<fuente>:<id_original>`, único en todo el sistema | ✓ | ✓ | ✓ | ✓ |
+| `fuente` | texto | Sí | `google_play`, `youtube`, `reddit` o `news` | ✓ | ✓ | ✓ | ✓ |
+| `id_original` | texto | Sí | No vacío. `reviewId`, ID del comentario de YouTube o ID de Reddit (`t3_…` post, `t1_…` comentario) o, en noticias, el `id` del feed de Google News (si falta, el enlace) | ✓ | ✓ | ✓ | ✓ |
+| `texto` | texto | Sí | No vacío. Reseña o comentario; en un post de Reddit, título + cuerpo; en noticias, el titular | ✓ | ✓ | ✓ | ✓ |
+| `fecha_publicacion` | fecha y hora UTC | Sí | No puede estar en el futuro (margen de 10 min) | ✓ | ✓ | ✓ | ✓ |
+| `idioma` | texto | Sí | Código ISO de 2 letras, por defecto `es` | ✓ | ✓ | ✓ | ✓ |
+| `pais` | texto | Sí | Código ISO de 2 letras, por defecto `co` | ✓ | ✓ | ✓ | ✓ |
+| `fecha_extraccion` | fecha y hora UTC | Sí | Por defecto, el momento de crear el registro | ✓ | ✓ | ✓ | ✓ |
+| `run_id` | texto | Sí | ID de la corrida, generado con `nuevo_run_id()` | ✓ | ✓ | ✓ | ✓ |
+| `version_scraper` | texto | Sí | Versión del código que extrajo el dato | ✓ | ✓ | ✓ | ✓ |
+| `version_contrato` | texto | Sí (automático) | Versión de este contrato | ✓ | ✓ | ✓ | ✓ |
+| `autor_hash` | texto (64) | No | SHA-256 con sal; 64 caracteres hexadecimales. Nunca el nombre real | ✓ | ✓ | ✓ | |
+| `calificacion` | entero | No | Entre 1 y 5 | ✓ | ✗ | ✗ | ✗ |
+| `likes` | entero | No | Mayor o igual a 0 (`thumbsUpCount`, `likeCount` o `score` de Reddit) | ✓ | ✓ | ✓ | |
+| `version_app` | texto | No | `reviewCreatedVersion` | ✓ | ✗ | ✗ | ✗ |
+| `respuesta_marca` | texto | No | Respuesta de Rappi a la reseña | ✓ | ✗ | ✗ | ✗ |
+| `fecha_respuesta` | fecha y hora UTC | No | No puede ser anterior a `fecha_publicacion` | ✓ | ✗ | ✗ | ✗ |
+| `id_contenedor` | texto | No | ID del video (YouTube) o del post al que pertenece un comentario (Reddit) | | ✓ | ✓ | |
+| `subreddit` | texto | No | Nombre del subreddit sin `r/`, en minúsculas | ✗ | ✗ | ✓ | ✗ |
+| `url` | texto | No | Enlace al video, al post o, en noticias, la redirección de Google News, no la URL del medio | | ✓ | ✓ | ✓ |
+| `medio` | texto | No | Nombre del medio que publica la noticia | ✗ | ✗ | ✗ | ✓ |
 
 ✓ se llena en esa fuente · ✗ prohibido en esa fuente (el registro se rechaza) · vacío: no aplica.
 
@@ -51,10 +52,12 @@ El contrato está implementado en código en [`src/common/schema.py`](../src/com
 
 La fecha de la partición es la fecha de extracción en UTC.
 
+El scraper de noticias también escribe `state/fuente=news/enlaces_vistos.json` en el mismo bucket. Es su estado interno, no sigue este esquema y queda fuera de `raw/`, así que quienes lean la capa raw no deben procesarlo.
+
 ## Ejemplo de registro (una línea del archivo)
 
 ```json
-{"fuente":"google_play","id_original":"gp-123","texto":"El pedido llegó tarde","fecha_publicacion":"2026-11-02T13:00:00Z","idioma":"es","pais":"co","fecha_extraccion":"2026-11-02T15:00:00Z","run_id":"20261102T150000Z-1a2b3c4d","version_scraper":"0.1.0","version_contrato":"1.0.0","autor_hash":"3f5a…(64 caracteres)","calificacion":2,"likes":null,"version_app":"9.1.0","respuesta_marca":null,"fecha_respuesta":null,"id_contenedor":null,"subreddit":null,"url":null,"id_registro":"google_play:gp-123"}
+{"fuente":"google_play","id_original":"gp-123","texto":"El pedido llegó tarde","fecha_publicacion":"2026-11-02T13:00:00Z","idioma":"es","pais":"co","fecha_extraccion":"2026-11-02T15:00:00Z","run_id":"20261102T150000Z-1a2b3c4d","version_scraper":"0.1.0","version_contrato":"1.1.0","autor_hash":"3f5a…(64 caracteres)","calificacion":2,"likes":null,"version_app":"9.1.0","respuesta_marca":null,"fecha_respuesta":null,"id_contenedor":null,"subreddit":null,"url":null,"medio":null,"id_registro":"google_play:gp-123"}
 ```
 
 ## Historial
@@ -62,3 +65,4 @@ La fecha de la partición es la fecha de extracción en UTC.
 | Versión | Fecha | Cambio |
 | --- | --- | --- |
 | 1.0.0 | 2026-11-04 | Versión inicial (fuentes: Google Play, YouTube y Reddit) |
+| 1.1.0 | 2026-11-04 | Se agrega la fuente `news` y el campo `medio`, porque el grupo eligió Google News como tercera fuente. Reddit sigue en el esquema hasta que se decida retirarlo |
