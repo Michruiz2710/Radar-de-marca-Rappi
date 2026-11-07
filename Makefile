@@ -2,13 +2,14 @@
 
 COMPOSE = docker compose -f infra/docker-compose.yml --env-file .env
 
-.PHONY: help up down logs ps test lint check-env
+.PHONY: help up down logs ps test lint check-env scrapers
 
 help:
 	@echo "make up     Levanta todos los servicios"
 	@echo "make down   Detiene los servicios"
 	@echo "make logs   Muestra los logs en vivo"
 	@echo "make ps     Lista los contenedores"
+	@echo "make scrapers  Corre una vez los 3 scrapers (requiere make up)"
 	@echo "make test   Corre las pruebas"
 	@echo "make lint   Revisa el estilo del código"
 
@@ -28,6 +29,12 @@ logs: check-env
 
 ps: check-env
 	$(COMPOSE) ps
+
+# Corre una vez cada scraper y guarda los datos crudos en MinIO
+scrapers: check-env
+	$(COMPOSE) --profile scrapers run --rm --build scraper-news
+	$(COMPOSE) --profile scrapers run --rm --build scraper-youtube
+	$(COMPOSE) --profile scrapers run --rm --build scraper-google-play
 
 # pytest termina con código 5 cuando todavía no hay pruebas; eso no es un error
 test:
