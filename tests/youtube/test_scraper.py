@@ -128,6 +128,27 @@ def test_solo_baja_comentarios_de_videos_que_nombran_la_marca():
     assert s.cuota_usada == 100 + 3  # los videos descartados no gastan cuota
 
 
+def test_busqueda_descarta_resultados_sin_video_id():
+    """La API a veces devuelve canales o listas en la búsqueda: no deben tumbar la corrida."""
+    items = [
+        {"id": {"kind": "youtube#video", "videoId": "v1"}, "snippet": {"title": "Pedí en Rappi"}},
+        {"id": {"kind": "youtube#channel", "channelId": "c1"}, "snippet": {"title": "Rappi Colombia"}},
+        {"id": {"kind": "youtube#playlist", "playlistId": "p1"}, "snippet": {"title": "Rappi reseñas"}},
+        {"snippet": {"title": "Rappi sin id"}},
+        {"id": {"kind": "youtube#video", "videoId": "v2"}, "snippet": {"title": "Rappi tarde otra vez"}},
+    ]
+
+    class BusquedaRara(YouTubeFalso):
+        def search(self):
+            class Busqueda:
+                def list(self, **kw):
+                    return Peticion({"items": items})
+            return Busqueda()
+
+    s = ScraperYouTube("x", youtube=BusquedaRara([]))
+    assert s.buscar_videos("Rappi", paginas=1) == ["v1", "v2"]
+
+
 def test_presupuesto_de_cuota():
     s = ScraperYouTube("x", presupuesto=50, youtube=YouTubeFalso([]))
     with pytest.raises(CuotaAgotada):

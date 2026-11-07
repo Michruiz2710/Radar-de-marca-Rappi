@@ -103,11 +103,18 @@ class ScraperYouTube:
                 relevanceLanguage=self.idioma, regionCode=self.region, pageToken=token,
             ))
             for item in respuesta.get("items", []):
+                # Aunque se pide type="video", la API a veces devuelve canales o
+                # listas de reproducción, que no traen videoId: se descartan.
+                video_id = item.get("id", {}).get("videoId")
+                if not video_id:
+                    descartados += 1
+                    log.debug("resultado descartado, no es un video: %s", item.get("id"))
+                    continue
                 if self.es_de_la_marca(item):
-                    ids.append(item["id"]["videoId"])
+                    ids.append(video_id)
                 else:
                     descartados += 1
-                    log.debug("video descartado, no nombra la marca: %s", item["id"]["videoId"])
+                    log.debug("video descartado, no nombra la marca: %s", video_id)
             token = respuesta.get("nextPageToken")
             if not token:
                 break
