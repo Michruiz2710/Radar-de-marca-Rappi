@@ -138,9 +138,37 @@ def test_subreddit_solo_en_reddit():
         resena(subreddit="Colombia")
 
 
-def test_respuesta_antes_de_la_resena_falla():
+def test_resena_editada_despues_de_la_respuesta_se_acepta():
+    # Rappi respondió hace 3 días y el usuario editó su reseña hace 2 horas:
+    # Google Play entrega la fecha de la edición como fecha de la reseña.
+    respondida = AHORA - timedelta(days=3)
+    r = resena(fecha_respuesta=respondida, respuesta_marca="Lamentamos lo ocurrido")
+    assert r.editada_tras_respuesta is True
+    assert r.fecha_edicion == r.fecha_publicacion
+
+
+def test_resena_respondida_sin_editar():
+    r = resena(fecha_respuesta=AHORA, respuesta_marca="Gracias por escribirnos")
+    assert r.editada_tras_respuesta is False
+    assert r.fecha_edicion is None
+
+
+def test_resena_sin_respuesta_no_se_puede_saber_si_se_edito():
+    r = resena()
+    assert r.editada_tras_respuesta is None
+    assert r.fecha_edicion is None
+
+
+def test_campos_de_edicion_quedan_en_el_json():
+    datos = json.loads(resena(fecha_respuesta=AHORA - timedelta(days=1)).a_json())
+    assert datos["editada_tras_respuesta"] is True
+    assert datos["fecha_edicion"] == datos["fecha_publicacion"]
+    assert datos["version_contrato"] == "1.2.0"
+
+
+def test_campos_de_edicion_son_calculados_no_se_pueden_enviar():
     with pytest.raises(ValidationError):
-        resena(fecha_respuesta=AHORA - timedelta(days=1))
+        resena(editada_tras_respuesta=False)
 
 
 def test_comentario_youtube_valido():

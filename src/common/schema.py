@@ -29,7 +29,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
-VERSION_CONTRATO = "1.1.0"
+VERSION_CONTRATO = "1.2.0"
 
 # Margen para diferencias de reloj entre servidores al validar fechas "futuras".
 _MARGEN_RELOJ = timedelta(minutes=10)
@@ -80,6 +80,10 @@ class RegistroMencion(BaseModel):
     likes: int | None = Field(default=None, ge=0)
     version_app: str | None = None  # solo Google Play
     respuesta_marca: str | None = None  # solo Google Play
+    # En Google Play, `fecha_publicacion` es la fecha de la versión ACTUAL de la
+    # reseña: si el usuario la edita, Google Play actualiza esa fecha. Por eso una
+    # respuesta de Rappi puede ser anterior a `fecha_publicacion` (ver
+    # `editada_tras_respuesta`).
     fecha_respuesta: datetime | None = None  # solo Google Play
     id_contenedor: str | None = None  # ID del video (YouTube) o del post (comentario de Reddit)
     subreddit: str | None = None  # solo Reddit, sin el prefijo "r/"
@@ -91,6 +95,25 @@ class RegistroMencion(BaseModel):
     def id_registro(self) -> str:
         """ID único en todo el sistema: '<fuente>:<id_original>'."""
         return f"{self.fuente.value}:{self.id_original}"
+
+    @computed_field
+    @property
+    def editada_tras_respuesta(self) -> bool | None:
+        """True si la reseña se modificó después de que Rappi respondiera.
+
+        - None: la reseña no tiene respuesta (no hay con qué comparar).
+        - False: tiene respuesta y no se modificó después.
+        - True: se modificó después de la respuesta.
+        """
+        if self.fecha_respuesta is None:
+            return None
+        return self.fecha_publicacion > self.fecha_respuesta
+
+    @computed_field
+    @property
+    def fecha_edicion(self) -> datetime | None:
+        """Fecha de la modificación posterior a la respuesta, si la hubo."""
+        return self.fecha_publicacion if self.editada_tras_respuesta else None
 
     @field_validator("fecha_publicacion", "fecha_extraccion", "fecha_respuesta")
     @classmethod
@@ -128,8 +151,6 @@ class RegistroMencion(BaseModel):
             raise ValueError("'subreddit' solo aplica a reddit")
         if self.fuente != Fuente.NEWS and self.medio is not None:
             raise ValueError("'medio' solo aplica a news")
-        if self.fecha_respuesta and self.fecha_respuesta < self.fecha_publicacion:
-            raise ValueError("fecha_respuesta no puede ser anterior a fecha_publicacion")
         return self
 
     def a_json(self) -> str:
