@@ -13,4 +13,5 @@ def prefect_local():
 def entorno_limpio(tmp_path, monkeypatch):
     monkeypatch.setenv("LOCAL_RAW_DIR", str(tmp_path))
     monkeypatch.setenv("PUSHGATEWAY_URL", "")
-    monkeypatch.delenv("YOUTUBE_API_KEY", raising=False)
+    # Vacia y no borrada: load_dotenv no reemplaza variables que ya existen
+    monkeypatch.setenv("YOUTUBE_API_KEY", "")

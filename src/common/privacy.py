@@ -45,7 +45,7 @@ def _normalizar(nombre: str) -> str:
 def hash_autor(nombre: str | None, sal: str | None = None) -> str | None:
     """Convierte el nombre de un autor en un hash de 64 caracteres hexadecimales.
 
-    Devuelve None si no hay autor (por ejemplo, un comentario borrado en Reddit).
+    Devuelve None si no hay autor (por ejemplo, en las noticias).
 
     >>> hash_autor("Ana María", sal="sal-de-prueba") == hash_autor(" ana maría ", sal="sal-de-prueba")
     True

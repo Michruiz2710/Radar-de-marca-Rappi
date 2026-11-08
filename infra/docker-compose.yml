@@ -100,6 +100,59 @@ services:
     profiles: ["scrapers"]
     restart: "no"
 
+  # --- Scraper de YouTube (P1.4): corre una vez y termina ---
+  # Guarda su marca de agua en MinIO, así que no necesita volumen.
+  scraper-youtube:
+    build:
+      context: ..
+      dockerfile: src/ingestion/youtube/Dockerfile
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-radar-rappi}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+      RAW_BACKEND: ${RAW_BACKEND:-minio}
+      HASH_SALT: ${HASH_SALT:?Falta HASH_SALT en .env}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      YT_QUERY: ${YT_QUERY:-Rappi}
+      YT_REGION: ${YT_REGION:-CO}
+      YT_LANG: ${YT_LANG:-es}
+      YT_MAX_SEARCHES_PER_DAY: ${YT_MAX_SEARCHES_PER_DAY:-3}
+      YT_MAX_COMMENTS_PER_VIDEO: ${YT_MAX_COMMENTS_PER_VIDEO:-500}
+      YT_QUOTA_BUDGET: ${YT_QUOTA_BUDGET:-8000}
+      YT_BRAND_TERMS: ${YT_BRAND_TERMS:-rappi}
+    depends_on:
+      - minio
+    profiles: ["scrapers"]
+    restart: "no"
+
+  # --- Scraper de Google Play (P1.3): corre una vez y termina ---
+  # Su marca de agua vive en /app/data/estado; el volumen la conserva entre
+  # corridas para que la extracción sea incremental también en Docker.
+  scraper-google-play:
+    build:
+      context: ..
+      dockerfile: src/ingestion/google_play/Dockerfile
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-radar-rappi}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+      RAW_BACKEND: ${RAW_BACKEND:-minio}
+      HASH_SALT: ${HASH_SALT:?Falta HASH_SALT en .env}
+      GP_APP_ID: ${GP_APP_ID:-com.grability.rappi}
+      GP_COUNTRY: ${GP_COUNTRY:-co}
+      GP_LANG: ${GP_LANG:-es}
+      GP_MAX_REVIEWS_PER_RUN: ${GP_MAX_REVIEWS_PER_RUN:-500}
+    volumes:
+      - google_play_estado:/app/data/estado
+    depends_on:
+      - minio
+    profiles: ["scrapers"]
+    restart: "no"
+
   # --- Orquestador (P2.1): registra los flujos en Prefect y los corre según su intervalo ---
   orquestador:
     build:
@@ -132,8 +185,9 @@ services:
       NEWS_GL: ${NEWS_GL:-CO}
       PUSHGATEWAY_URL: ${PUSHGATEWAY_URL:-}
     volumes:
-      # Guarda la marca de agua de Google Play y el conteo de fallas entre reinicios
-      - orquestador_data:/app/data
+      # Mismo volumen que scraper-google-play: así los dos comparten la marca de agua
+      # y no se bajan reseñas repetidas. También guarda el conteo de fallas.
+      - google_play_estado:/app/data/estado
     depends_on:
       minio:
         condition: service_started
@@ -144,4 +198,4 @@ services:
 volumes:
   minio_data:
   postgres_data:
-  orquestador_data:
+  google_play_estado:
