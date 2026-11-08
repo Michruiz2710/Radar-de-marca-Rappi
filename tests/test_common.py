@@ -133,7 +133,13 @@ def test_calificacion_solo_en_google_play():
         resena(fuente="youtube", calificacion=5)
 
 
-def test_subreddit_solo_en_reddit():
+def test_reddit_ya_no_es_una_fuente():
+    # Retirado en el contrato v1.3.0: la fuente 3 es Google News.
+    with pytest.raises(ValidationError):
+        resena(fuente="reddit", calificacion=None)
+
+
+def test_subreddit_ya_no_es_un_campo():
     with pytest.raises(ValidationError):
         resena(subreddit="Colombia")
 
@@ -163,7 +169,7 @@ def test_campos_de_edicion_quedan_en_el_json():
     datos = json.loads(resena(fecha_respuesta=AHORA - timedelta(days=1)).a_json())
     assert datos["editada_tras_respuesta"] is True
     assert datos["fecha_edicion"] == datos["fecha_publicacion"]
-    assert datos["version_contrato"] == "1.2.0"
+    assert datos["version_contrato"] == "1.3.0"
 
 
 def test_campos_de_edicion_son_calculados_no_se_pueden_enviar():
@@ -179,22 +185,6 @@ def test_comentario_youtube_valido():
         run_id="r", version_scraper="0.1.0",
     )
     assert r.id_registro == "youtube:yt-9"
-
-
-def test_comentario_reddit_valido():
-    r = RegistroMencion(
-        fuente=Fuente.REDDIT, id_original="t1_abc", texto="Rappi me cobró dos veces",
-        fecha_publicacion=AHORA, fecha_extraccion=AHORA, autor_hash=hash_autor("u1", sal=SAL),
-        likes=12, id_contenedor="t3_post1", subreddit="r/Colombia",
-        url="https://www.reddit.com/r/Colombia/comments/post1/", run_id="r", version_scraper="0.1.0",
-    )
-    assert r.id_registro == "reddit:t1_abc"
-    assert r.subreddit == "colombia"
-
-
-def test_calificacion_no_aplica_a_reddit():
-    with pytest.raises(ValidationError):
-        resena(fuente="reddit", calificacion=4)
 
 
 # ---------- storage.py ----------
