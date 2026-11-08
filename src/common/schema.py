@@ -1,8 +1,7 @@
 """Contrato de datos: el registro común que producen los 3 scrapers.
 
-Cada reseña de Google Play, comentario de YouTube o publicación/comentario de
-Reddit o noticia de Google News se convierte en
-un RegistroMencion antes de guardarse. Si algún campo no cumple el contrato,
+Cada reseña de Google Play, comentario de YouTube o noticia de Google News se
+convierte en un RegistroMencion antes de guardarse. Si algún campo no cumple el contrato,
 Pydantic lanza un error y el registro NO se guarda.
 
 La explicación de cada campo está en docs/contrato_datos.md.
@@ -29,7 +28,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
-VERSION_CONTRATO = "1.2.0"
+VERSION_CONTRATO = "1.3.0"
 
 # Margen para diferencias de reloj entre servidores al validar fechas "futuras".
 _MARGEN_RELOJ = timedelta(minutes=10)
@@ -40,7 +39,6 @@ class Fuente(str, Enum):
 
     GOOGLE_PLAY = "google_play"
     YOUTUBE = "youtube"
-    REDDIT = "reddit"
     NEWS = "news"
 
 
@@ -85,9 +83,8 @@ class RegistroMencion(BaseModel):
     # respuesta de Rappi puede ser anterior a `fecha_publicacion` (ver
     # `editada_tras_respuesta`).
     fecha_respuesta: datetime | None = None  # solo Google Play
-    id_contenedor: str | None = None  # ID del video (YouTube) o del post (comentario de Reddit)
-    subreddit: str | None = None  # solo Reddit, sin el prefijo "r/"
-    url: str | None = None  # YouTube, Reddit y noticias
+    id_contenedor: str | None = None  # ID del video (YouTube)
+    url: str | None = None  # YouTube y noticias
     medio: str | None = None  # solo noticias: nombre del medio que publica
 
     @computed_field
@@ -127,14 +124,6 @@ class RegistroMencion(BaseModel):
             raise ValueError("fecha_publicacion no puede estar en el futuro")
         return valor
 
-    @field_validator("subreddit", mode="before")
-    @classmethod
-    def _sin_prefijo(cls, valor):
-        # "r/Colombia" y "Colombia" se guardan igual: "colombia"
-        if isinstance(valor, str):
-            return valor.strip().removeprefix("r/").removeprefix("/r/").lower() or None
-        return valor
-
     @field_validator("idioma", "pais", mode="before")
     @classmethod
     def _minusculas(cls, valor):
@@ -147,8 +136,6 @@ class RegistroMencion(BaseModel):
             for campo in ("calificacion", "version_app", "respuesta_marca", "fecha_respuesta"):
                 if getattr(self, campo) is not None:
                     raise ValueError(f"'{campo}' solo aplica a google_play")
-        if self.fuente != Fuente.REDDIT and self.subreddit is not None:
-            raise ValueError("'subreddit' solo aplica a reddit")
         if self.fuente != Fuente.NEWS and self.medio is not None:
             raise ValueError("'medio' solo aplica a news")
         return self
