@@ -68,10 +68,11 @@ Usan un servidor temporal de Prefect y scrapers simulados, así que no necesitan
 
 Hecho: flujos por fuente, flujo principal, programación, reintentos, gancho de fallo y parámetros por entorno. Probado con un servidor de Prefect real: la corrida de noticias guardó en un almacenamiento compatible con MinIO y, al forzar una falla, la tarea reintentó 3 veces y el gancho contó la falla.
 
+**Corrida de 24 horas (criterio de aceptación):** del sábado 7 de noviembre a las 8:24 p. m. al domingo 8 a las 8:24 p. m., en Docker y sin intervención manual. El orquestador siguió encendido las 24 horas, las tres fuentes corrieron a su intervalo y no falló ninguna corrida.
+
 **Pendiente:**
 
 - **Validación, limpieza y sentimiento:** quedan `pendiente` hasta que lleguen P2.2, P2.3 y P2.4.
-- **Corrida de 24 horas:** es el criterio de aceptación y falta hacerla.
 - **Pushgateway:** lo agrega P3.1; hasta entonces las métricas solo quedan en el log.
 
 **Decisiones a confirmar:**
