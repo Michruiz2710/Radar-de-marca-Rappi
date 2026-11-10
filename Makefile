@@ -2,10 +2,11 @@
 
 COMPOSE = docker compose -f infra/docker-compose.yml --env-file .env
 
-.PHONY: help up down logs ps test lint check-env scrapers
+.PHONY: help up down logs ps test lint check-env scrapers desplegar
 
 help:
 	@echo "make up     Levanta todos los servicios"
+	@echo "make desplegar  Levanta todo con las imágenes publicadas en ghcr.io (IMAGE_TAG en .env)"
 	@echo "make down   Detiene los servicios"
 	@echo "make logs   Muestra los logs en vivo"
 	@echo "make ps     Lista los contenedores"
@@ -44,3 +45,10 @@ test:
 
 lint:
 	python -m ruff check .
+
+# Levanta el entorno con las imágenes que publicó el CD en ghcr.io, sin construir nada.
+# La versión sale de IMAGE_TAG en .env (latest o una etiqueta como v0.2.0).
+desplegar: check-env
+	$(COMPOSE) pull
+	$(COMPOSE) up -d --no-build
+	@echo "Listo. MinIO: http://localhost:9001 | Prefect: http://localhost:4200"
