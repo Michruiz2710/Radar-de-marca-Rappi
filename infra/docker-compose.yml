@@ -60,7 +60,7 @@ services:
 
   # --- Orquestador ---
   prefect:
-    image: prefecthq/prefect:3.1.5-python3.11
+    image: prefecthq/prefect:3.8.8-python3.11
     command: prefect server start --host 0.0.0.0 --port 4200
     depends_on:
       postgres:
@@ -152,6 +152,48 @@ services:
       - minio
     profiles: ["scrapers"]
     restart: "no"
+
+  # --- Orquestador (P2.1): registra los flujos en Prefect y los corre según su intervalo ---
+  orquestador:
+    build:
+      context: ..
+      dockerfile: flows/Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      PREFECT_API_URL: http://prefect:4200/api
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-radar-rappi}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+      RAW_BACKEND: ${RAW_BACKEND:-minio}
+      HASH_SALT: ${HASH_SALT}
+      GP_APP_ID: ${GP_APP_ID:-com.grability.rappi}
+      GP_COUNTRY: ${GP_COUNTRY:-co}
+      GP_LANG: ${GP_LANG:-es}
+      GP_MAX_REVIEWS_PER_RUN: ${GP_MAX_REVIEWS_PER_RUN:-500}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      YT_QUERY: ${YT_QUERY:-Rappi}
+      YT_REGION: ${YT_REGION:-CO}
+      YT_LANG: ${YT_LANG:-es}
+      YT_MAX_SEARCHES_PER_DAY: ${YT_MAX_SEARCHES_PER_DAY:-3}
+      YT_MAX_COMMENTS_PER_VIDEO: ${YT_MAX_COMMENTS_PER_VIDEO:-500}
+      YT_QUOTA_BUDGET: ${YT_QUOTA_BUDGET:-8000}
+      YT_BRAND_TERMS: ${YT_BRAND_TERMS:-rappi}
+      NEWS_QUERY: ${NEWS_QUERY:-Rappi}
+      NEWS_HL: ${NEWS_HL:-es-419}
+      NEWS_GL: ${NEWS_GL:-CO}
+      PUSHGATEWAY_URL: ${PUSHGATEWAY_URL:-}
+    volumes:
+      # Mismo volumen que scraper-google-play: así los dos comparten la marca de agua
+      # y no se bajan reseñas repetidas. También guarda el conteo de fallas.
+      - google_play_estado:/app/data/estado
+    depends_on:
+      minio:
+        condition: service_started
+      prefect:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   minio_data:
