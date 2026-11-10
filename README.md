@@ -1,5 +1,7 @@
 # Radar de Marca: Rappi
 
+[![CI](https://github.com/Michruiz2710/Radar-de-marca-Rappi/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Michruiz2710/Radar-de-marca-Rappi/actions/workflows/ci.yml) [![CD](https://github.com/Michruiz2710/Radar-de-marca-Rappi/actions/workflows/cd.yml/badge.svg?branch=main)](https://github.com/Michruiz2710/Radar-de-marca-Rappi/actions/workflows/cd.yml)
+
 Pipeline DataOps de escucha activa que recolecta lo que se dice de Rappi en Google Play, YouTube y Google News, valida y analiza esos datos, alerta cuando algo falla o el sentimiento negativo se dispara, y lo muestra en un dashboard de negocio.
 
 Proyecto grupal del curso **Enfoque DataOps** — Escuela Colombiana de Ingeniería Julio Garavito.
