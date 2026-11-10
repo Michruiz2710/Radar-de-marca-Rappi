@@ -1,0 +1,98 @@
+# CI: corre en cada PR hacia main y en cada push a main.
+# No usa secretos ni internet en las pruebas.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Si subes otro commit al mismo PR, cancela la corrida anterior
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    name: Pruebas y lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Misma versión de Python que los Dockerfiles
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff==0.12.12
+
+      - name: Lint (ruff)
+        run: make lint
+
+      - name: Pruebas (pytest)
+        run: make test
+
+  imagenes:
+    name: Build ${{ matrix.nombre }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      # Si falla una imagen, las demás siguen para ver todos los errores juntos
+      fail-fast: false
+      matrix:
+        include:
+          - nombre: scraper-news
+            dockerfile: src/ingestion/news/Dockerfile
+          - nombre: scraper-youtube
+            dockerfile: src/ingestion/youtube/Dockerfile
+          - nombre: scraper-google-play
+            dockerfile: src/ingestion/google_play/Dockerfile
+          - nombre: orquestador
+            dockerfile: flows/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Se construye desde la raíz del repo, igual que en el docker-compose
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha,scope=${{ matrix.nombre }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.nombre }}
+
+  calidad:
+    name: Validaciones de calidad
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # P2.2 (Katalina) define el comando. Mientras no exista, no bloquea el PR.
+      - name: Validaciones (make validar)
+        run: |
+          if make -n validar > /dev/null 2>&1; then
+            make validar
+          else
+            echo "::notice::Todavía no existe 'make validar' (P2.2). Se omite este paso."
+          fi
