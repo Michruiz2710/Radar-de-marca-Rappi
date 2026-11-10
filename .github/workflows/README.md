@@ -24,10 +24,10 @@ Para revisar en local lo mismo que el CI, instala ruff con `pip install ruff==0.
 
 Corre en cada push a `main` y cada vez que se publica una release.
 
-1. Staging: levanta el compose completo dentro del runner con `APP_ENV=staging` y revisa que el orquestador haya registrado sus despliegues en Prefect. Al terminar apaga todo y borra los volúmenes.
-2. Publicación: si el staging pasa, sube las cuatro imágenes a `ghcr.io/michruiz2710/radar-de-marca-rappi/<servicio>`. En `main` les pone las etiquetas `latest` y `sha-<commit>`. En una release les pone el número de la release, por ejemplo `v0.2.0`.
+1. Verificar: levanta el compose completo dentro del runner con la configuración de un entorno y las claves de su GitHub Environment. En un push a `main` usa staging; en una release usa prod. Revisa que el orquestador registre sus despliegues en Prefect y que existan el bucket y los dos esquemas de Postgres del entorno. Al terminar apaga todo y borra los volúmenes.
+2. Publicación: si la verificación pasa, sube las cuatro imágenes a `ghcr.io/michruiz2710/radar-de-marca-rappi/<servicio>`. En `main` les pone las etiquetas `latest` y `sha-<commit>`. En una release les pone el número de la release, por ejemplo `v0.2.0`.
 
-Las releases las sigue creando Michelle a mano en GitHub; el CD no crea releases. Las imágenes se construyen solo para amd64. Para entrar a ghcr.io se usa el `GITHUB_TOKEN` que GitHub genera en cada corrida, así que no hay que configurar ninguna clave.
+Los valores de cada entorno están en `config/` y las claves en los Environments `staging` y `prod` del repo (ver `config/README.md`). Las releases las sigue creando Michelle a mano en GitHub; el CD no crea releases. Las imágenes se construyen solo para amd64. Para entrar a ghcr.io se usa el `GITHUB_TOKEN` que GitHub genera en cada corrida.
 
 ### Desplegar con las imágenes publicadas
 
@@ -41,5 +41,5 @@ Este comando baja las imágenes de ghcr.io y levanta todo sin construir nada. `m
 
 ### Pendiente
 
-- Michelle: activar la regla de protección de `main` que exige que el CI pase, y hacer públicos los paquetes de ghcr.io para que se puedan bajar sin iniciar sesión.
-- P2.2 (Katalina): agregar el objetivo `validar` al Makefile.
+- Michelle: crear los Environments `staging` y `prod` con sus tres secretos, exigir que el CI pase antes de fusionar a `main` y hacer públicos los paquetes de ghcr.io para que se puedan bajar sin iniciar sesión.
+- P2.2 (Katalina): agregar el objetivo `validar` al Makefile. Hasta entonces el CI no corre Great Expectations.
