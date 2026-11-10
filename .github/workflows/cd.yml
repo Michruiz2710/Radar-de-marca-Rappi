@@ -1,0 +1,118 @@
+# CD: en cada push a main levanta el compose completo como staging y, si funciona,
+# publica las 4 imágenes en ghcr.io con las etiquetas latest y sha-<commit>.
+# Cuando Michelle publica una release (por ejemplo v0.2.0), publica las imágenes
+# con ese mismo número. No crea releases ni usa secretos configurados a mano.
+name: CD
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# No cancela una publicación a medias; la siguiente espera su turno
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRO: ghcr.io/michruiz2710/radar-de-marca-rappi
+  COMPOSE: docker compose -f infra/docker-compose.yml --env-file .env
+
+jobs:
+  staging:
+    name: Staging (compose completo)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      # Credenciales de ejemplo: el staging vive solo dentro del runner y se borra al final
+      - name: Preparar .env de staging
+        run: |
+          cp .env.example .env
+          sed -i 's/^APP_ENV=.*/APP_ENV=staging/' .env
+
+      - name: Levantar el compose
+        run: $COMPOSE up -d --build
+
+      # Si el orquestador registró sus despliegues en Prefect, funcionan MinIO,
+      # Postgres, Prefect y la imagen del orquestador
+      - name: Comprobar que el orquestador registró sus despliegues
+        run: |
+          for i in $(seq 1 36); do
+            n=$(curl -s -X POST http://localhost:4200/api/deployments/filter \
+              -H 'Content-Type: application/json' \
+              -d '{"deployments":{"tags":{"all_":["staging"]}}}' \
+              | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
+            echo "Intento $i: $n despliegues de staging"
+            if [ "$n" -ge 4 ]; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::El orquestador no registró sus despliegues en 3 minutos"
+          exit 1
+
+      - name: Mostrar logs si algo falló
+        if: failure()
+        run: |
+          $COMPOSE ps -a
+          $COMPOSE logs --tail 100
+
+      - name: Apagar el staging
+        if: always()
+        run: $COMPOSE down -v
+
+  publicar:
+    name: Publicar ${{ matrix.nombre }}
+    needs: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - nombre: scraper-news
+            dockerfile: src/ingestion/news/Dockerfile
+          - nombre: scraper-youtube
+            dockerfile: src/ingestion/youtube/Dockerfile
+          - nombre: scraper-google-play
+            dockerfile: src/ingestion/google_play/Dockerfile
+          - nombre: orquestador
+            dockerfile: flows/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # GITHUB_TOKEN lo crea GitHub en cada corrida; no hay que configurar nada
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRO }}/${{ matrix.nombre }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=short,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ github.event.release.tag_name }},enable=${{ github.event_name == 'release' }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.nombre }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.nombre }}
