@@ -7,6 +7,7 @@ from src.transform.clean.texto import (
     contar_urls,
     detectar_idioma,
     enmascarar,
+    esta_vacio,
     limpiar_texto,
     normalizar,
 )
@@ -28,6 +29,25 @@ def test_normalizar_quita_caracteres_invisibles():
 
 def test_normalizar_conserva_emojis_mayusculas_y_signos():
     assert normalizar("¡PÉSIMO! 😡") == "¡PÉSIMO! 😡"
+
+
+@pytest.mark.parametrize("emoji", ["👨\u200d👩\u200d👧", "👩\u200d🍳", "❤\ufe0f\u200d🔥", "🏳\ufe0f\u200d🌈"])
+def test_normalizar_conserva_emojis_compuestos(emoji):
+    # El ZWJ (U+200D) une varios emojis en uno; quitarlo los partiría
+    assert normalizar(f"pedido tarde {emoji}") == f"pedido tarde {emoji}"
+
+
+def test_normalizar_quita_los_demas_invisibles_pero_no_el_zwj():
+    assert normalizar("a\u200bb\u2060c\ufeffd 👩\u200d🍳") == "abcd 👩\u200d🍳"
+
+
+@pytest.mark.parametrize("texto", ["", "   ", "\u200b\ufeff", "\u200d", "\u200c\u200d\ufe0f", " \u2060 \n\t"])
+def test_texto_sin_contenido_visible_queda_vacio(texto):
+    assert esta_vacio(limpiar_texto(texto))
+
+
+def test_texto_con_un_emoji_no_esta_vacio():
+    assert not esta_vacio(limpiar_texto("👍"))
 
 
 def test_normalizar_texto_vacio():

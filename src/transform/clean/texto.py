@@ -23,8 +23,12 @@ _RE_FIJO = re.compile(r"(?<!\d)(?:\+?57[\s.-]?)?60\d[\s.-]?\d{3}[\s.-]?\d{4}(?!\
 # No toca montos con puntos ("$1.000.000"), que importan para las quejas de cobros.
 _RE_NUMERO_LARGO = re.compile(r"(?<![\d.,])\d{7,}(?![\d.,])")
 
-# Caracteres invisibles que se cuelan al copiar y pegar
-_RE_INVISIBLES = re.compile("[\u200b-\u200f\u2028\u2029\u2060\ufeff]")
+# Caracteres invisibles que se cuelan al copiar y pegar. NO incluye U+200C ni U+200D
+# (ZWNJ y ZWJ): el ZWJ une emojis compuestos como 👨‍👩‍👧, 👩‍🍳 o ❤️‍🔥, y sin él
+# quedarían partidos en varios emojis.
+_RE_INVISIBLES = re.compile("[\u200b\u200e\u200f\u2028\u2029\u2060\ufeff]")
+# Lo que no se ve: espacios, uniones de emojis y selectores de variante
+_RE_SIN_CONTENIDO = re.compile("[\s\u200c\u200d\ufe0e\ufe0f]+")
 _RE_ESPACIOS = re.compile(r"\s+")
 _RE_MARCADORES = re.compile(r"\[(?:URL|CORREO|TELEFONO|NUMERO)\]")
 
@@ -86,6 +90,11 @@ def normalizar(texto: str | None) -> str:
     texto = _RE_INVISIBLES.sub("", texto)
     texto = "".join(" " if unicodedata.category(c) == "Cc" else c for c in texto)
     return _RE_ESPACIOS.sub(" ", texto).strip()
+
+
+def esta_vacio(texto: str) -> bool:
+    """True si al texto no le queda nada visible (por ejemplo, solo uniones de emojis)."""
+    return not _RE_SIN_CONTENIDO.sub("", texto)
 
 
 def contar_urls(texto: str | None) -> int:

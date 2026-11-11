@@ -71,6 +71,43 @@ def test_descarta_filas_incompletas():
     assert len(filas) == 1 and resumen["descartados"] == 2
 
 
+@pytest.mark.parametrize("texto", ["   ", "\u200b\ufeff", "\u200d", " \u2060\n "])
+def test_descarta_textos_que_quedan_vacios_al_limpiar(texto, caplog):
+    filas, resumen = transformar([cruda("r1"), cruda("r2", texto=texto)])
+    assert [f["id_registro"] for f in filas] == ["google_play:r1"]
+    assert resumen["descartados"] == 1
+    assert "queda vacío" in caplog.text and "google_play:r2" in caplog.text
+
+
+def test_conserva_emojis_compuestos_en_texto_limpio():
+    filas, _ = transformar([cruda(texto="Llegó tarde otra vez 👨\u200d👩\u200d👧 ❤\ufe0f\u200d🔥")])
+    assert filas[0]["texto_limpio"] == "Llegó tarde otra vez 👨\u200d👩\u200d👧 ❤\ufe0f\u200d🔥"
+
+
+def test_reporta_porcentaje_de_bots_total_y_por_fuente():
+    spam = "gana dinero https://bit.ly/a https://t.me/b"
+    crudas = [cruda(f"g{i}", autor_hash=f"g{i}".ljust(64, "0")) for i in range(2)] + [
+        cruda(f"y{i}", fuente="youtube", calificacion=None, autor_hash=f"{i}" * 64, texto=spam if i == 0 else f"comentario {i}")
+        for i in range(4)
+    ]
+    _, resumen = transformar(crudas)
+    assert resumen["bots"] == 1
+    assert resumen["pct_bots"] == round(100 / 6, 2)
+    assert resumen["bots_por_fuente"] == {"google_play": 0, "youtube": 1}
+    assert resumen["pct_bots_por_fuente"] == {"google_play": 0.0, "youtube": 25.0}
+
+
+def test_porcentaje_de_bots_sin_filas():
+    _, resumen = transformar([])
+    assert (resumen["bots"], resumen["pct_bots"], resumen["bots_por_fuente"]) == (0, 0.0, {})
+
+
+def test_el_porcentaje_de_bots_sale_en_el_log(tmp_path, motor, caplog):
+    caplog.set_level("INFO", logger="limpieza")
+    limpiar({"google_play": escribir(tmp_path, "a.jsonl", [cruda()])}, motor=motor)
+    assert '"pct_bots": 0.0' in caplog.text and '"pct_bots_por_fuente"' in caplog.text
+
+
 def test_recalcula_editada_tras_respuesta_en_archivos_viejos():
     # Archivos anteriores al contrato v1.2.0 no traen estos campos
     filas, _ = transformar([cruda(fecha_respuesta="2026-11-02T10:00:00Z")])

@@ -26,7 +26,7 @@ docker compose -f infra/docker-compose.yml --env-file .env exec orquestador pyth
 docker compose -f infra/docker-compose.yml --env-file .env exec orquestador python -m src.transform.clean.limpieza --fuente youtube
 ```
 
-Al final imprime un resumen: leídos, descartados, duplicados, bots, idiomas, nuevos, actualizados y sin cambios.
+Al final imprime un resumen: leídos, descartados, duplicados, idiomas, bots (cantidad y porcentaje, total y por fuente), nuevos, actualizados y sin cambios.
 
 **Ver el resultado** en Postgres:
 
@@ -47,8 +47,4 @@ Usan SQLite en memoria en lugar de Postgres, así corren en el CI sin base de da
 
 Hecho: lectura de la capa raw, normalización, enmascarado de datos personales (también en la respuesta de Rappi), detección de idioma (español, portugués e inglés), duplicados con la versión más reciente, 5 reglas de bots, carga idempotente por entorno y carga histórica. Probado contra Postgres 16 con 11.540 registros simulados del tamaño de la primera corrida: 2 segundos, sin datos personales visibles y sin cambios al repetir la carga.
 
-**Pendiente:**
-
-- **Bots entre corridas:** las reglas comparan una tanda a la vez. En corridas incrementales pequeñas, un autor que repite texto en días distintos no se detecta. Mejora posible: consultar en la tabla el historial de los autores de la tanda.
-- **Idioma:** solo distingue español, portugués e inglés, que son los que aparecen en las fuentes. Otro idioma quedaría clasificado como uno de esos tres o como el de la consulta.
-- **Nombres en el texto:** se enmascaran correos, teléfonos y números largos, pero no nombres propios ("soy Ana Pérez"), que no se pueden detectar de forma confiable con reglas.
+**Limitaciones conocidas:** ver la sección del mismo nombre en [`docs/contrato_clean.md`](../../../docs/contrato_clean.md).

@@ -1,6 +1,6 @@
 # Contrato de la capa clean
 
-**Versión de la limpieza:** 1.1.0 · **Autora:** Michelle (P2.3) · **Acordado en la reunión del 9 de noviembre de 2026**
+**Versión de la limpieza:** 1.2.0 · **Autora:** Michelle (P2.3) · **Acordado en la reunión del 9 de noviembre de 2026**
 
 La limpieza lee la capa raw (MinIO) y deja una fila por mención en la tabla `menciones` de Postgres. De esta tabla leen las validaciones (P2.2), el sentimiento (P2.4) y los modelos de dbt (P3.4). Está implementada en [`src/transform/clean/tabla.py`](../src/transform/clean/tabla.py); si este documento y el código no coinciden, manda el código.
 
@@ -29,7 +29,7 @@ El esquema sale de la variable `PG_SCHEMA_CLEAN` (ver `config/<entorno>.env`). E
 | `id_registro` | texto | No | `<fuente>:<id_original>`. Llave primaria |
 | `fuente` | texto | No | `google_play`, `youtube` o `news` |
 | `id_original` | texto | No | ID en la plataforma de origen |
-| `texto_limpio` | texto | No | Texto normalizado y con datos personales enmascarados: `[CORREO]`, `[TELEFONO]`, `[NUMERO]`, `[URL]`. Conserva mayúsculas, signos y emojis |
+| `texto_limpio` | texto | No | Texto normalizado y con datos personales enmascarados: `[CORREO]`, `[TELEFONO]`, `[NUMERO]`, `[URL]`. Conserva mayúsculas, signos y emojis, incluidos los compuestos (👨‍👩‍👧, 👩‍🍳). Nunca queda vacío: si al limpiar no queda texto visible, la fila se descarta y se registra en el log |
 | `hash_texto` | texto (64) | No | SHA-256 de `texto_limpio`. Si cambia, el texto cambió (por ejemplo, reseña editada) y hay que volver a analizarlo |
 | `idioma_consulta` | texto | No | Idioma que se pidió a la fuente (`es`) |
 | `idioma_detectado` | texto | No | Idioma real del texto: `es`, `pt` o `en`. Si el texto no da pistas (por ejemplo "excelente"), se asume el de la consulta |
@@ -67,6 +67,21 @@ El esquema sale de la variable `PG_SCHEMA_CLEAN` (ver `config/<entorno>.env`). E
 
 Las noticias nunca se marcan como bot. Las reglas comparan los registros de una misma tanda de limpieza.
 
+## Resumen de cada carga
+
+`limpiar()` devuelve y registra en el log un resumen con: `leidos`, `descartados`, `duplicados`, `idiomas`, `nuevos`, `actualizados`, `sin_cambios`, `archivos` y los bots:
+
+- `bots` y `bots_por_fuente`: cantidad de filas marcadas como bot.
+- `pct_bots` y `pct_bots_por_fuente`: porcentaje de bots sobre las filas limpias de la tanda (0 a 100). Alimentan la métrica `registros_bot_ratio` de la observabilidad (P3.1).
+
+## Limitaciones conocidas
+
+- **Ráfaga solo entre videos.** La regla `rafaga` exige comentarios en 3 o más videos distintos. Un bot que comente muchas veces en un solo video, o en Google Play (que no tiene `id_contenedor`), no se marca por esa regla. Sí lo marca `texto_repetido_autor` si repite el mismo texto.
+- **Reglas de bots dentro de una tanda.** Las reglas comparan solo los registros de la misma tanda de limpieza. Un autor que repite texto en corridas distintas del orquestador no se detecta; solo lo detecta la carga histórica, que procesa todo junto. Seguimiento en un issue aparte: consultar el historial de autores en la tabla y actualizar las filas ya cargadas.
+- **Idioma.** Solo distingue español, portugués e inglés, que son los que aparecen en las fuentes.
+- **Nombres propios.** Se enmascaran correos, teléfonos y números largos, pero no nombres ("soy Ana Pérez"), que no se pueden detectar de forma confiable con reglas.
+- **Comentarios fuera de tema.** Algunos videos nombran a Rappi en el título, pero sus comentarios no hablan de la marca (por ejemplo, videos musicales). No son bots y se conservan; la clasificación por tema (P2.4) puede dejarlos como "otro".
+
 ## Para quien lee la tabla
 
 - **Sentimiento (P2.4):** analizar solo `idioma_detectado = 'es'` y `es_bot = false`. Guardar en `clean.sentimiento` el `hash_texto` analizado y volver a analizar cuando no coincida con el de `menciones`.
@@ -78,4 +93,5 @@ Las noticias nunca se marcan como bot. Las reglas comparan los registros de una 
 | Versión | Fecha | Cambio |
 | --- | --- | --- |
 | 1.0.0 | 2026-11-10 | Versión inicial |
+| 1.2.0 | 2026-11-11 | Revisión de Jonathan: se conservan los emojis compuestos (antes se quitaba el ZWJ, U+200D, y se partían); se descartan las filas cuyo texto queda vacío al limpiarlo; el resumen reporta el porcentaje de bots total y por fuente |
 | 1.1.0 | 2026-11-10 | Con los datos reales (11.090 filas), las reglas `rafaga` y `promocional` marcaban personas reales: 530 por conversar en un video y 33 repartidores hablando de ganancias. Ahora la ráfaga exige 3 o más videos distintos, y las frases de dinero exigen un enlace |

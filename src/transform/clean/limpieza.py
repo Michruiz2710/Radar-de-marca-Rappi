@@ -36,11 +36,12 @@ from src.transform.clean.texto import (
     clave_comparacion,
     contar_urls,
     detectar_idioma,
+    esta_vacio,
     limpiar_texto,
 )
 
 # Subirla cuando cambie una regla: así la carga actualiza las filas ya limpiadas.
-VERSION_LIMPIEZA = "1.1.0"
+VERSION_LIMPIEZA = "1.2.0"
 
 log = logging.getLogger("limpieza")
 
@@ -69,6 +70,10 @@ def _preparar(cruda: dict) -> dict:
     # Se recalculan aquí porque los archivos anteriores al contrato v1.2.0 no los traen
     editada = None if fecha_respuesta is None else fecha_publicacion > fecha_respuesta
     texto_limpio = limpiar_texto(texto)
+    # Un texto con solo espacios o caracteres invisibles queda vacío al limpiarlo:
+    # rompería la regla "texto no vacío" (P2.2) y el modelo de sentimiento (P2.4)
+    if esta_vacio(texto_limpio):
+        raise ValueError("el texto queda vacío después de limpiarlo")
     respuesta = limpiar_texto(cruda.get("respuesta_marca")) or None
 
     return {
@@ -156,8 +161,30 @@ def transformar(crudas: list[dict]) -> tuple[list[dict], dict]:
         fila["version_limpieza"] = VERSION_LIMPIEZA
         fila["procesado_en"] = procesado_en
         del fila["_n_urls"], fila["_texto_original"]
-    resumen["bots"] = len(motivos)
+    resumen.update(_porcentaje_bots(filas))
     return filas, resumen
+
+
+def _porcentaje_bots(filas: list[dict]) -> dict:
+    """Bots en total y por fuente, en cantidad y en porcentaje de las filas limpias.
+
+    `pct_bots` alimenta la métrica registros_bot_ratio de la observabilidad (P3.1).
+    """
+    por_fuente: dict[str, list[int]] = {}
+    for fila in filas:
+        total, bots = por_fuente.setdefault(fila["fuente"], [0, 0])
+        por_fuente[fila["fuente"]] = [total + 1, bots + int(fila["es_bot"])]
+    total_bots = sum(bots for _, bots in por_fuente.values())
+
+    def pct(bots: int, total: int) -> float:
+        return round(100 * bots / total, 2) if total else 0.0
+
+    return {
+        "bots": total_bots,
+        "pct_bots": pct(total_bots, len(filas)),
+        "bots_por_fuente": {f: bots for f, (_, bots) in sorted(por_fuente.items())},
+        "pct_bots_por_fuente": {f: pct(bots, total) for f, (total, bots) in sorted(por_fuente.items())},
+    }
 
 
 def limpiar_rutas(rutas: list[str], motor: Engine | None = None, esquema: str | None = None, cliente=None) -> dict:
