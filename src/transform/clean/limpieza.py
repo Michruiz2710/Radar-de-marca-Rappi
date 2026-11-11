@@ -40,7 +40,7 @@ from src.transform.clean.texto import (
 )
 
 # Subirla cuando cambie una regla: así la carga actualiza las filas ya limpiadas.
-VERSION_LIMPIEZA = "1.0.0"
+VERSION_LIMPIEZA = "1.1.0"
 
 log = logging.getLogger("limpieza")
 
@@ -145,6 +145,7 @@ def transformar(crudas: list[dict]) -> tuple[list[dict], dict]:
                 "texto_limpio": f["texto_limpio"],
                 "texto_original": f["_texto_original"],
                 "fecha_publicacion": f["fecha_publicacion"],
+                "id_contenedor": f["id_contenedor"],
             }
             for f in filas
         ]

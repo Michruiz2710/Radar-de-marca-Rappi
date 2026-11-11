@@ -1,6 +1,6 @@
 # Contrato de la capa clean
 
-**Versión de la limpieza:** 1.0.0 · **Autora:** Michelle (P2.3) · **Acordado en la reunión del 9 de noviembre de 2026**
+**Versión de la limpieza:** 1.1.0 · **Autora:** Michelle (P2.3) · **Acordado en la reunión del 9 de noviembre de 2026**
 
 La limpieza lee la capa raw (MinIO) y deja una fila por mención en la tabla `menciones` de Postgres. De esta tabla leen las validaciones (P2.2), el sentimiento (P2.4) y los modelos de dbt (P3.4). Está implementada en [`src/transform/clean/tabla.py`](../src/transform/clean/tabla.py); si este documento y el código no coinciden, manda el código.
 
@@ -60,10 +60,10 @@ El esquema sale de la variable `PG_SCHEMA_CLEAN` (ver `config/<entorno>.env`). E
 | Motivo | Regla |
 | --- | --- |
 | `multiples_enlaces` | Dos o más enlaces en el texto |
-| `promocional` | Frases o enlaces típicos de spam ("gana dinero", "visita mi canal", `bit.ly/`, `t.me/`...) |
+| `promocional` | Enlaces o frases típicas de spam (`bit.ly/`, `t.me/`, "visita mi canal"...). Las frases de dinero ("gana dinero", "ingresos extra") solo cuentan si el texto trae un enlace, porque entre repartidores son conversación normal |
 | `texto_repetido_autor` | El mismo autor publicó el mismo texto más de una vez |
 | `campana_varios_autores` | El mismo texto, de 40 caracteres o más, lo publicaron 3 o más autores. Las frases cortas o genéricas no cuentan, porque mucha gente real las escribe igual |
-| `rafaga` | 5 o más comentarios del mismo autor en 10 minutos |
+| `rafaga` | 5 o más comentarios del mismo autor en 10 minutos, en 3 o más videos distintos. Una persona conversando en un mismo video no cuenta |
 
 Las noticias nunca se marcan como bot. Las reglas comparan los registros de una misma tanda de limpieza.
 
@@ -78,3 +78,4 @@ Las noticias nunca se marcan como bot. Las reglas comparan los registros de una 
 | Versión | Fecha | Cambio |
 | --- | --- | --- |
 | 1.0.0 | 2026-11-10 | Versión inicial |
+| 1.1.0 | 2026-11-10 | Con los datos reales (11.090 filas), las reglas `rafaga` y `promocional` marcaban personas reales: 530 por conversar en un video y 33 repartidores hablando de ganancias. Ahora la ráfaga exige 3 o más videos distintos, y las frases de dinero exigen un enlace |
