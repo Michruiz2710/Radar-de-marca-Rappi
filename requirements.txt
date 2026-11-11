@@ -22,3 +22,7 @@ prefect==3.8.8
 prometheus-client==0.21.1
 # Prefect 3.8.8 falla con fastapi 0.162 (se quitó min_items); 0.142.2 funciona
 fastapi==0.142.2
+
+# --- P2.3 limpieza (conexión a Postgres compartida en src/common/db.py) ---
+sqlalchemy==2.0.57
+psycopg[binary]==3.2.13

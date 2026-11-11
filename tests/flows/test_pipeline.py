@@ -97,6 +97,6 @@ def test_fuente_desconocida(prefect_local):
 
 
 def test_resolver_distingue_pendiente_de_error():
-    assert pipeline.resolver("quality.checkpoints:validar_cruda") is None
+    assert pipeline.resolver("paquete_inexistente.modulo:funcion") is None
     assert pipeline.resolver("flows.pipeline:no_existe") is None
     assert pipeline.resolver("flows.pipeline:resolver") is pipeline.resolver
