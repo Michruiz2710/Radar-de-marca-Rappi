@@ -1,36 +1,75 @@
-""" Checkpoints de calidad que llaman el pipeline de Prefect
+"""Checkpoints de calidad que llama el pipeline de Prefect (P2.2).
+
     flows/pipeline.py llama a `validar_cruda(rutas)` después de la ingesta, con
-    rutas = {fuente: ruta del archivo nuevo o None}. Si falla una regla CRÍTICA,
+    rutas = {fuente de ruta del archivo nuevo o None}. Si falla una regla CRÍTICA,
     la función lanza ValidacionCriticaError y el pipeline se detiene antes de la
-    limpieza. Las advertencias solo quedan en el log.
+    limpieza. Las ADVERTENCIAS solo quedan en el log.
 """
 
-import logging 
+import logging
+import os
+from functools import lru_cache
+from itertools import count
+
 import great_expectations as gx
 import pandas as pd
-
-from quality.reglas import critica
-from quality.suites import preparar_tabla, suite_raw
-from src.common.storage import leer_registros
-
+from great_expectations.data_context import AbstractDataContext
 from sqlalchemy import Engine, select
 
+from quality.reglas import critica
 from quality.suites import preparar_tabla, preparar_tabla_clean, suite_clean, suite_raw
 from src.common.db import crear_motor, esquema_clean
+from src.common.storage import leer_registros
 from src.transform.clean.tabla import con_esquema, menciones
 
 log = logging.getLogger("quality.checkpoints")
 
-class ValidacionCriticaError(Exception):
-    """Falla al menos una regla critica si dato incumple contrato"""
 
-def validar_tabla(tabla: pd.DataFrame, suite:gx.ExpectationSuite) -> dict:
-    """ Corre suite sobre tabla y devuelve resumen con reglas que fallaron"""
-    contexto = gx.get_context(mode = "ephemeral")
-    lote = (
-        contexto.data_sources.add_pandas("datos").add_dataframe_asset(suite.name).add_batch_definition_whole_dataframe("todo")
+class ValidacionCriticaError(Exception):
+    """Falló al menos una regla crítica por lo que el dato rompe el contrato."""
+
+
+def directorio_data_docs() -> str:
+    """Carpeta donde se guardan los Data Docs (reporte HTML)"""
+    return os.path.abspath(os.getenv("DATA_DOCS_DIR", "data/data_docs"))
+
+
+@lru_cache(maxsize=1)
+def _contexto() -> AbstractDataContext:
+    """Un solo contexto de GX por proceso. Índice de Data Docs muestra todas
+    las validaciones de la corrida"""
+    contexto = gx.get_context(mode="ephemeral")
+    contexto.add_data_docs_site(
+        site_name="radar",
+        site_config={
+            "class_name": "SiteBuilder",
+            "store_backend": {"class_name": "TupleFilesystemStoreBackend", "base_directory": directorio_data_docs()},
+            "site_index_builder": {"class_name": "DefaultSiteIndexBuilder"},
+        },
     )
-    resultado = lote.get_batch(batch_parameters = {"dataframe": tabla}).validate(suite)
+    contexto.data_sources.add_pandas("datos")
+    return contexto
+
+
+_numero_validacion = count(1)
+
+
+def validar_tabla(tabla: pd.DataFrame, suite: gx.ExpectationSuite) -> dict:
+    """Corre la suite como un Checkpoint de GX, actualiza los Data Docs y resume las fallas."""
+    contexto = _contexto()
+    nombre = f"{suite.name}_{next(_numero_validacion)}"  # cada validación con nombre único
+    lote = contexto.data_sources.get("datos").add_dataframe_asset(nombre).add_batch_definition_whole_dataframe("todo")
+    suite = contexto.suites.add_or_update(suite)
+    validacion = contexto.validation_definitions.add(gx.ValidationDefinition(name=nombre, data=lote, suite=suite))
+    checkpoint = contexto.checkpoints.add(
+        gx.Checkpoint(
+            name=f"checkpoint_{nombre}",
+            validation_definitions=[validacion],
+            actions=[gx.checkpoint.UpdateDataDocsAction(name="data_docs")],
+        )
+    )
+    resultado_checkpoint = checkpoint.run(batch_parameters={"dataframe": tabla})
+    resultado = next(iter(resultado_checkpoint.run_results.values()))
 
     fallidas = [
         {
@@ -42,7 +81,6 @@ def validar_tabla(tabla: pd.DataFrame, suite:gx.ExpectationSuite) -> dict:
         for r in resultado.results
         if not r.success
     ]
-
     return {
         "suite": suite.name,
         "filas": len(tabla),
@@ -50,15 +88,15 @@ def validar_tabla(tabla: pd.DataFrame, suite:gx.ExpectationSuite) -> dict:
         "advertencias": [f for f in fallidas if f["severidad"] != critica],
     }
 
+
 def validar_cruda(rutas: dict[str, str | None]) -> list[dict]:
-    """ Etapa de validación cruda del pipeline para cada archivo de cada fuente"""
+    """ Valida el archivo nuevo de cada fuente."""
     resumenes = []
     for fuente, ruta in rutas.items():
         if not ruta:
-            log.info("Validación de raw %s: no hay archivo nuevo", fuente)
+            log.info("Validación raw de %s: no hay archivo nuevo", fuente)
             continue
-        resumen = validar_tabla(preparar_tabla(leer_registros(ruta)),
-                                suite_raw(fuente))
+        resumen = validar_tabla(preparar_tabla(leer_registros(ruta)), suite_raw(fuente))
         resumen["ruta"] = ruta
         for falla in resumen["advertencias"]:
             log.warning("Advertencia en %s: %s", ruta, falla)
@@ -71,8 +109,9 @@ def validar_cruda(rutas: dict[str, str | None]) -> list[dict]:
         raise ValidacionCriticaError(f"Validación raw fallida en: {con_criticas}")
     return resumenes
 
+
 def leer_clean(motor: Engine | None = None, esquema: str | None = None) -> pd.DataFrame:
-    """ Lee la tabla `menciones` de la capa clean del entorno actual"""
+    """ Lee la tabla `menciones` de la capa clean del entorno actual."""
     motor = motor or crear_motor()
     with motor.connect() as conexion:
         conexion = con_esquema(conexion, esquema or esquema_clean())

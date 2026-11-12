@@ -36,3 +36,8 @@ def test_advertencia_no_detiene_el_flujo(tmp_path):
     resumenes = validar_cruda({"google_play": ruta})
     assert resumenes[0]["criticas"] == []
     assert len(resumenes[0]["advertencias"]) == 1
+
+def test_genera_data_docs(tmp_path):
+    ruta = _guardar(tmp_path, [_registro_correcto()])
+    validar_cruda({"google_play": ruta})
+    assert (tmp_path / "data_docs" / "index.html").exists()
