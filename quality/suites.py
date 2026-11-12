@@ -11,7 +11,10 @@ import pandas as pd
 
 from quality.reglas import (advertencia, campos_contrato, columnas_fecha, critica, fuentes_permitidas, 
                             idioma_esperado, margen_reloj_minutos, obligatorios, pais_esperado, patron_autor_hash, 
-                            solo_google_play, solo_news, version_contrato_actual, columnas_retiradas, )
+                            solo_google_play, solo_news, version_contrato_actual, columnas_retiradas, 
+                            idiomas_detectados, columnas_fecha_clean,)
+
+from src.transform.clean.tabla import COLUMNAS as columnas_clean
 
 E = gx.expectations
 
@@ -67,3 +70,39 @@ def suite_raw(fuente: str) -> gx.ExpectationSuite:
      
      return gx.ExpectationSuite(name = f"raw_{fuente}", expectations = reglas)
 
+def preparar_tabla_clean(tabla: pd.DataFrame) -> pd.DataFrame:
+    """ Deja las fechas de la tabla clean en UTC """
+    tabla = tabla.copy()
+    for columna in columnas_fecha_clean:
+        if columna in tabla.columns:
+            tabla[columna] = pd.to_datetime(tabla[columna], utc=True, errors="coerce", format="ISO8601")
+    return tabla
+
+
+def suite_clean() -> gx.ExpectationSuite:
+    """ Reglas para la tabla `menciones` de la capa clean """
+    ahora = datetime.now(timezone.utc) + timedelta(minutes=margen_reloj_minutos)
+    patron_id = rf"^(?:{'|'.join(fuentes_permitidas)}):.+$"
+    reglas = [
+        # Críticas
+        E.ExpectTableColumnsToMatchSet(column_set=columnas_clean, exact_match=True, severity=critica),
+        E.ExpectColumnValuesToNotBeNull(column="id_registro", severity=critica),
+        E.ExpectColumnValuesToBeUnique(column="id_registro", severity=critica),
+        E.ExpectColumnValuesToMatchRegex(column="id_registro", regex=patron_id, severity=critica),
+        E.ExpectColumnValuesToBeInSet(column="fuente", value_set=fuentes_permitidas, severity=critica),
+        E.ExpectColumnValuesToNotBeNull(column="texto_limpio", severity=critica),
+        E.ExpectColumnValueLengthsToBeBetween(column="texto_limpio", min_value=1, severity=critica),
+        E.ExpectColumnValuesToBeBetween(column="calificacion", min_value=1, max_value=5, severity=critica),
+        E.ExpectColumnValuesToNotBeNull(column="fecha_publicacion", severity=critica),
+        E.ExpectColumnMaxToBeBetween(column="fecha_publicacion", max_value=ahora, severity=critica),
+        E.ExpectColumnMaxToBeBetween(column="fecha_extraccion", max_value=ahora, severity=critica),
+        E.ExpectColumnValuesToMatchRegex(column="autor_hash", regex=patron_autor_hash, severity=critica),
+        E.ExpectColumnValuesToMatchRegex(column="hash_texto", regex=patron_autor_hash, severity=critica),
+        E.ExpectColumnValuesToNotBeNull(column="es_bot", severity=critica),
+        E.ExpectColumnValuesToNotBeNull(column="version_limpieza", severity=critica),
+        # Advertencias
+        E.ExpectTableRowCountToBeBetween(min_value=1, severity=advertencia),
+        E.ExpectColumnValuesToBeInSet(column="idioma_detectado", value_set=idiomas_detectados, severity=advertencia),
+        E.ExpectColumnValuesToBeInSet(column="pais", value_set=[pais_esperado], severity=advertencia),
+    ]
+    return gx.ExpectationSuite(name="clean_menciones", expectations=reglas)

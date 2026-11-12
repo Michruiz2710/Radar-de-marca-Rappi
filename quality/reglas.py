@@ -33,3 +33,7 @@ margen_reloj_minutos = 10
 idioma_esperado = "es"
 pais_esperado = "co"
 version_contrato_actual = VERSION_CONTRATO
+
+# Capa clean 
+idiomas_detectados = ["es", "pt", "en"]
+columnas_fecha_clean = columnas_fecha + ["procesado_en"]

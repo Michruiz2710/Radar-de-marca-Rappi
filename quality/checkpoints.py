@@ -13,6 +13,12 @@ from quality.reglas import critica
 from quality.suites import preparar_tabla, suite_raw
 from src.common.storage import leer_registros
 
+from sqlalchemy import Engine, select
+
+from quality.suites import preparar_tabla, preparar_tabla_clean, suite_clean, suite_raw
+from src.common.db import crear_motor, esquema_clean
+from src.transform.clean.tabla import con_esquema, menciones
+
 log = logging.getLogger("quality.checkpoints")
 
 class ValidacionCriticaError(Exception):
@@ -36,7 +42,7 @@ def validar_tabla(tabla: pd.DataFrame, suite:gx.ExpectationSuite) -> dict:
         for r in resultado.results
         if not r.success
     ]
-    
+
     return {
         "suite": suite.name,
         "filas": len(tabla),
@@ -64,3 +70,25 @@ def validar_cruda(rutas: dict[str, str | None]) -> list[dict]:
     if con_criticas:
         raise ValidacionCriticaError(f"Validación raw fallida en: {con_criticas}")
     return resumenes
+
+def leer_clean(motor: Engine | None = None, esquema: str | None = None) -> pd.DataFrame:
+    """ Lee la tabla `menciones` de la capa clean del entorno actual"""
+    motor = motor or crear_motor()
+    with motor.connect() as conexion:
+        conexion = con_esquema(conexion, esquema or esquema_clean())
+        return pd.read_sql(select(menciones), conexion)
+
+
+def validar_limpia(rutas: dict[str, str | None], motor: Engine | None = None, esquema: str | None = None) -> dict | None:
+    """ Valida la tabla clean después de la limpieza."""
+    if not any(rutas.values()):
+        log.info("Validación clean: no hubo archivos nuevos, la tabla no cambió")
+        return None
+    resumen = validar_tabla(preparar_tabla_clean(leer_clean(motor, esquema)), suite_clean())
+    for falla in resumen["advertencias"]:
+        log.warning("Advertencia en clean: %s", falla)
+    for falla in resumen["criticas"]:
+        log.error("Regla crítica fallida en clean: %s", falla)
+    if resumen["criticas"]:
+        raise ValidacionCriticaError(f"Validación clean fallida: {resumen['criticas']}")
+    return resumen
