@@ -208,6 +208,12 @@ services:
       NEWS_HL: ${NEWS_HL:-es-419}
       NEWS_GL: ${NEWS_GL:-CO}
       PUSHGATEWAY_URL: ${PUSHGATEWAY_URL:-}
+      # Postgres: la limpieza (P2.3) escribe en la capa clean
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-radar}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       # Mismo volumen que scraper-google-play: así los dos comparten la marca de agua
       # y no se bajan reseñas repetidas. También guarda el conteo de fallas.
@@ -216,6 +222,8 @@ services:
       minio:
         condition: service_started
       prefect:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     restart: unless-stopped
 
