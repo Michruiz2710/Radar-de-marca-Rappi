@@ -17,6 +17,8 @@ advertencia = "warning"
 campos_contrato = sorted(set(RegistroMencion.model_fields) | set(RegistroMencion.model_computed_fields))
 
 obligatorios = ["id_registro", "fuente", "id_original", "texto", "fecha_publicacion", "idioma", "pais", "fecha_extraccion", "run_id", "version_scraper", "version_contrato",]
+
+columnas_retiradas = ["subreddit"]
 columnas_fecha = ["fecha_publicacion", "fecha_extraccion", "fecha_respuesta", "fecha_edicion"]
 
 # Campos prohibidos fuera de su fuente

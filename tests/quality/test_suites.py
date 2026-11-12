@@ -50,3 +50,17 @@ def test_calificacion_fuera_de_rango_es_critica():
     resultado = _validar([registro])
     fallidas = [r for r in resultado.results if not r.success]
     assert [r.expectation_config.severity.value for r in fallidas] == [critica]
+
+def test_columna_retirada_vacia_se_acepta():
+    viejo = _registro_correcto()
+    viejo["subreddit"] = None  # archivo de antes del contrato 1.3.0
+    resultado = _validar([viejo])
+    assert [r for r in resultado.results if not r.success] == []
+
+
+def test_columna_retirada_con_datos_es_critica():
+    raro = _registro_correcto()
+    raro["subreddit"] = "Colombia"
+    resultado = _validar([raro])
+    fallidas = [r.expectation_config.severity.value for r in resultado.results if not r.success]
+    assert fallidas == [critica]

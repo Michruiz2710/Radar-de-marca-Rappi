@@ -10,13 +10,17 @@ import great_expectations as gx
 import pandas as pd
 
 from quality.reglas import (advertencia, campos_contrato, columnas_fecha, critica, fuentes_permitidas, 
-                            idioma_esperado, margen_reloj_minutos, obligatorios, pais_esperado, patron_autor_hash, solo_google_play, solo_news, version_contrato_actual,)
+                            idioma_esperado, margen_reloj_minutos, obligatorios, pais_esperado, patron_autor_hash, 
+                            solo_google_play, solo_news, version_contrato_actual, columnas_retiradas, )
 
 E = gx.expectations
 
 def preparar_tabla(registros: list[dict]) -> pd.DataFrame:
      """ onvierte los registros de un archivo raw en una tabla para validar."""
      tabla = pd.DataFrame(registros)
+     for columna in columnas_retiradas:
+          if columna in tabla.columns and tabla[columna].isna().all():
+            tabla = tabla.drop(columns=columna)
      for columna in campos_contrato:
           if columna not in tabla.columns and columna not in obligatorios:
                tabla[columna] = None
