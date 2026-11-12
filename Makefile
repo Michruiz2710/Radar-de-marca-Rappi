@@ -5,7 +5,7 @@
 ENTORNO ?= dev
 COMPOSE = docker compose -f infra/docker-compose.yml --env-file .env --env-file config/$(ENTORNO).env
 
-.PHONY: help up down logs ps test lint check-env scrapers desplegar
+.PHONY: help up down logs ps test lint check-env scrapers desplegar validar
 
 help:
 	@echo "make up     Levanta todos los servicios"
@@ -17,7 +17,7 @@ help:
 	@echo "make scrapers  Corre una vez los 3 scrapers (requiere make up)"
 	@echo "make test   Corre las pruebas"
 	@echo "make lint   Revisa el estilo del código"
-
+	@echo "make validar   Corre las validaciones de calidad"
 # Falla con un mensaje claro si todavía no existe el archivo .env
 check-env:
 	@test -f .env || { echo "No existe .env. Copia el ejemplo y completa las credenciales: cp .env.example .env"; exit 1; }
@@ -57,3 +57,8 @@ desplegar: check-env
 	$(COMPOSE) pull
 	$(COMPOSE) up -d --no-build
 	@echo "Listo. MinIO: http://localhost:9001 | Prefect: http://localhost:4200"
+
+# Validaciones de calidad: datos de prueba
+# Para validar también con capa raw
+validar:
+	python -m quality.validar
