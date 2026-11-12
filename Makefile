@@ -5,7 +5,7 @@
 ENTORNO ?= dev
 COMPOSE = docker compose -f infra/docker-compose.yml --env-file .env --env-file config/$(ENTORNO).env
 
-.PHONY: help up down logs ps test lint check-env scrapers nlp evaluar-nlp
+.PHONY: help up down logs ps test lint check-env scrapers desplegar nlp evaluar-nlp
 
 help:
 	@echo "make up     Levanta todos los servicios"
