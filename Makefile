@@ -5,7 +5,7 @@
 ENTORNO ?= dev
 COMPOSE = docker compose -f infra/docker-compose.yml --env-file .env --env-file config/$(ENTORNO).env
 
-.PHONY: help up down logs ps test lint check-env scrapers desplegar
+.PHONY: help up down logs ps test lint check-env scrapers desplegar nlp evaluar-nlp
 
 help:
 	@echo "make up     Levanta todos los servicios"
@@ -17,6 +17,8 @@ help:
 	@echo "make scrapers  Corre una vez los 3 scrapers (requiere make up)"
 	@echo "make test   Corre las pruebas"
 	@echo "make lint   Revisa el estilo del código"
+	@echo "make nlp    Calcula sentimiento y tema de los registros pendientes (requiere make up)"
+	@echo "make evaluar-nlp  Evalúa sentimiento y temas contra las 200 reseñas etiquetadas"
 
 # Falla con un mensaje claro si todavía no existe el archivo .env
 check-env:
@@ -41,6 +43,12 @@ scrapers: check-env
 	$(COMPOSE) --profile scrapers run --rm --build scraper-news
 	$(COMPOSE) --profile scrapers run --rm --build scraper-youtube
 	$(COMPOSE) --profile scrapers run --rm --build scraper-google-play
+
+nlp: check-env
+	$(COMPOSE) --profile nlp run --rm --build nlp
+
+evaluar-nlp: check-env
+	$(COMPOSE) --profile nlp run --rm --build nlp python -m src.transform.nlp.evaluacion
 
 # pytest termina con código 5 cuando todavía no hay pruebas; eso no es un error
 test:

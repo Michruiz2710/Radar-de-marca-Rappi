@@ -1,0 +1,10 @@
+# Dependencias de la imagen de sentimiento y temas (P2.4), con versión fija.
+# sqlalchemy y psycopg tienen la misma versión que el requirements.txt de la raíz (comparten src/common/db.py).
+# torch NO va aquí: el Dockerfile instala la versión solo-CPU desde el índice de PyTorch.
+# Para desarrollo local instala torch aparte: pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+pysentimiento==0.7.3
+transformers==4.46.3
+huggingface_hub[cli]>=0.24,<1.0
+sqlalchemy==2.0.57
+psycopg[binary]==3.2.13
+python-dotenv==1.0.1
