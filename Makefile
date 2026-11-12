@@ -2,7 +2,7 @@
 
 COMPOSE = docker compose -f infra/docker-compose.yml --env-file .env
 
-.PHONY: help up down logs ps test lint check-env scrapers
+.PHONY: help up down logs ps test lint check-env scrapers nlp evaluar-nlp
 
 help:
 	@echo "make up     Levanta todos los servicios"
@@ -35,6 +35,12 @@ scrapers: check-env
 	$(COMPOSE) --profile scrapers run --rm --build scraper-news
 	$(COMPOSE) --profile scrapers run --rm --build scraper-youtube
 	$(COMPOSE) --profile scrapers run --rm --build scraper-google-play
+
+nlp: check-env
+	$(COMPOSE) --profile nlp run --rm --build nlp
+
+evaluar-nlp: check-env
+	$(COMPOSE) --profile nlp run --rm --build nlp python -m src.transform.nlp.evaluacion
 
 # pytest termina con código 5 cuando todavía no hay pruebas; eso no es un error
 test:
