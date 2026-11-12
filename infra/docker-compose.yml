@@ -58,6 +58,24 @@ services:
       retries: 12
     restart: unless-stopped
 
+  # --- Crea los esquemas clean y analytics del entorno (P2.5) y termina ---
+  postgres-init:
+    image: postgres:16.6-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-radar}
+      PG_SCHEMA_CLEAN: ${PG_SCHEMA_CLEAN:-clean}
+      PG_SCHEMA_ANALYTICS: ${PG_SCHEMA_ANALYTICS:-analytics}
+    volumes:
+      - ./postgres/crear_esquemas.sh:/crear_esquemas.sh:ro
+    command: sh /crear_esquemas.sh
+    restart: "no"
+
   # --- Orquestador ---
   prefect:
     image: prefecthq/prefect:3.8.8-python3.11
@@ -84,6 +102,7 @@ services:
     build:
       context: ..
       dockerfile: src/ingestion/news/Dockerfile
+    image: ghcr.io/michruiz2710/radar-de-marca-rappi/scraper-news:${IMAGE_TAG:-latest}
     environment:
       MINIO_ENDPOINT: minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -106,6 +125,7 @@ services:
     build:
       context: ..
       dockerfile: src/ingestion/youtube/Dockerfile
+    image: ghcr.io/michruiz2710/radar-de-marca-rappi/scraper-youtube:${IMAGE_TAG:-latest}
     environment:
       MINIO_ENDPOINT: minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -134,6 +154,7 @@ services:
     build:
       context: ..
       dockerfile: src/ingestion/google_play/Dockerfile
+    image: ghcr.io/michruiz2710/radar-de-marca-rappi/scraper-google-play:${IMAGE_TAG:-latest}
     environment:
       MINIO_ENDPOINT: minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -153,8 +174,9 @@ services:
     profiles: ["scrapers"]
     restart: "no"
 
-  # --- Sentimiento y temas (P2.4): lee clean.menciones, escribe clean.menciones_nlp y termina ---
+  # --- Sentimiento y temas (P2.4): lee clean.menciones, escribe clean.sentimiento y termina ---
   # Solo CPU, modelo incluido en la imagen. Recursos iniciales: 2 CPU y 4 GB (ajustar midiendo).
+  # No tiene `image:` ni va en el CI/CD: el CI y `make desplegar` no la construyen ni la bajan.
   nlp:
     build:
       context: ..
@@ -188,8 +210,11 @@ services:
     build:
       context: ..
       dockerfile: flows/Dockerfile
+    image: ghcr.io/michruiz2710/radar-de-marca-rappi/orquestador:${IMAGE_TAG:-latest}
     environment:
       APP_ENV: ${APP_ENV:-dev}
+      PG_SCHEMA_CLEAN: ${PG_SCHEMA_CLEAN:-clean}
+      PG_SCHEMA_ANALYTICS: ${PG_SCHEMA_ANALYTICS:-analytics}
       PREFECT_API_URL: http://prefect:4200/api
       MINIO_ENDPOINT: minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -214,6 +239,12 @@ services:
       NEWS_HL: ${NEWS_HL:-es-419}
       NEWS_GL: ${NEWS_GL:-CO}
       PUSHGATEWAY_URL: ${PUSHGATEWAY_URL:-}
+      # Postgres: la limpieza (P2.3) escribe en la capa clean
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-radar}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       # Mismo volumen que scraper-google-play: así los dos comparten la marca de agua
       # y no se bajan reseñas repetidas. También guarda el conteo de fallas.
@@ -222,6 +253,8 @@ services:
       minio:
         condition: service_started
       prefect:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     restart: unless-stopped
 

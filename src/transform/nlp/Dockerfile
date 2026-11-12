@@ -23,10 +23,11 @@ RUN python /tmp/descargar_modelo.py
 # A partir de aquí el contenedor no necesita internet
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 
-# 4) código (db.py viene de src/common, lo define P2.3)
+# 4) código: src/common trae db.py y src/transform/clean trae texto.py (limpiar_texto, que usa la evaluación), ambos de P2.3
 COPY src/__init__.py src/
 COPY src/common/ src/common/
 COPY src/transform/__init__.py src/transform/
+COPY src/transform/clean/ src/transform/clean/
 COPY src/transform/nlp/ src/transform/nlp/
 
 CMD ["python", "-m", "src.transform.nlp.pipeline"]

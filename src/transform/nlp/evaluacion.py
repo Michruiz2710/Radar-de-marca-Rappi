@@ -7,8 +7,8 @@ docs/evaluacion_nlp.md).
     python -m src.transform.nlp.evaluacion [--muestra data/etiquetas/muestra_200.csv]
                                            [--salida docs/evaluacion_nlp.md]
 
-Aviso: la muestra no es representativa (ver data/etiquetas/README.md). Se evalúa el texto tal
-como viene en el CSV, sin pasar por la limpieza de P2.3.
+Aviso: la muestra no es representativa (ver data/etiquetas/README.md). El texto se pasa antes por
+`limpiar_texto` de P2.3, igual que en el pipeline real, y el informe compara con el texto original.
 """
 
 from __future__ import annotations
@@ -17,9 +17,10 @@ import argparse
 import csv
 from collections import Counter, defaultdict
 from collections.abc import Sequence
-from datetime import date
+from datetime import UTC, datetime
 from pathlib import Path
 
+from src.transform.clean.texto import limpiar_texto
 from src.transform.nlp import config
 from src.transform.nlp.temas import TEMA_OTRO, TEMAS_VALIDOS, clasificar_tema
 
@@ -117,8 +118,9 @@ def cargar_muestra(ruta: Path = RUTA_MUESTRA) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def evaluar(filas: list[dict[str, str]], analizador) -> dict:
-    textos = [f["texto"] for f in filas]
+def evaluar(filas: list[dict[str, str]], analizador, limpiador=None) -> dict:
+    """Evalúa la muestra. Con `limpiador`, cada texto se limpia antes de analizarlo."""
+    textos = [limpiador(f["texto"]) if limpiador else f["texto"] for f in filas]
     sent_real = [f["sentimiento"] for f in filas]
     sent_pred = [r.sentimiento for r in analizador.analizar(textos)]
     tema_real = [f["tema"] for f in filas]
@@ -147,6 +149,7 @@ def evaluar(filas: list[dict[str, str]], analizador) -> dict:
     esperado = [sentimiento_esperado_por_estrellas(e) for e in estrellas]
     return {
         "n": len(filas),
+        "texto": "limpio" if limpiador else "original",
         "version_modelo": analizador.version,
         "version_nlp": config.VERSION_NLP,
         "sentimiento": {
@@ -200,7 +203,7 @@ def _tabla_clases(por_clase: dict[str, dict[str, float]]) -> str:
     return "\n".join(filas)
 
 
-def generar_informe(r: dict) -> str:
+def generar_informe(r: dict, r_original: dict | None = None) -> str:
     est = r["estrellas"]
     cruce_filas = ["| Estrellas | positivo | neutro | negativo |", "| --- | --- | --- | --- |"]
     for e in sorted(est["cruce"]):
@@ -215,13 +218,32 @@ def generar_informe(r: dict) -> str:
             f"| {quien} | {m['n']} | {_pct(m['exactitud_sentimiento'])} | {_pct(m['exactitud_tema'])} "
             f"| {_pct(m['tema_entre_detectados'])} |"
         )
+    efecto = ""
+    if r_original is not None:
+        def fila(nombre, a, b):
+            return f"| {nombre} | {_pct(a)} | {_pct(b)} |"
+
+        efecto = f"""
+## Efecto de la limpieza (P2.3)
+
+Misma muestra y mismo modelo; cambia solo el texto que se analiza.
+
+| Métrica | Texto original | Texto limpio |
+| --- | --- | --- |
+{fila("Sentimiento: exactitud", r_original["sentimiento"]["exactitud"], r["sentimiento"]["exactitud"])}
+{fila("Sentimiento: F1 macro", r_original["sentimiento"]["f1_macro"], r["sentimiento"]["f1_macro"])}
+{fila("Temas: exactitud", r_original["tema"]["exactitud"], r["tema"]["exactitud"])}
+{fila("Temas: F1 macro", r_original["tema"]["f1_macro"], r["tema"]["f1_macro"])}
+{fila("Temas: real entre los detectados", r_original["tema"]["entre_detectados"], r["tema"]["entre_detectados"])}
+"""
     return f"""# Evaluación de sentimiento y temas (P2.4)
 
-Generado el {date.today().isoformat()} con `python -m src.transform.nlp.evaluacion`.
+Generado el {datetime.now(UTC).date().isoformat()} con `python -m src.transform.nlp.evaluacion`.
 
 - **Modelo:** `{r['version_modelo']}`
 - **Versión del código NLP:** {r['version_nlp']}
 - **Reseñas evaluadas:** {r['n']} (`data/etiquetas/muestra_200.csv`)
+- **Texto evaluado:** {r['texto']} (`limpiar_texto` de P2.3 es lo que analiza el pipeline)
 
 ## Cómo leer estas cifras
 
@@ -233,7 +255,6 @@ Generado el {date.today().isoformat()} con `python -m src.transform.nlp.evaluaci
   temas que el diccionario encontró, no solo como principal. Una reseña suele hablar de varios temas
   y la guía pide elegir el que la motivó, algo que un diccionario no puede saber. Es más generosa que
   la exactitud: se reporta como complemento, no como reemplazo. `otro` acierta solo si no se detectó nada.
-- Se evalúa el texto original de la muestra, sin la limpieza de P2.3.
 - El diccionario de temas se ajustó mirando solo las filas 2 a 101 (etiquetó Sara). Las filas
   102 a 201 (Gabriel) no se usaron para ajustarlo; es la cifra que mejor estima el desempeño real.
 
@@ -274,7 +295,7 @@ Regla de comparación: 1-2 estrellas = negativo, 3 = neutro, 4-5 = positivo.
   (referencia: así de lejos queda el humano de las estrellas).
 - Reseñas de 1-2 estrellas que el modelo ve positivas: {est['positivo_con_1_2_estrellas']}.
 - Reseñas de 4-5 estrellas que el modelo ve negativas: {est['negativo_con_4_5_estrellas']}.
-"""
+{efecto}"""
 
 
 def main() -> None:
@@ -285,9 +306,12 @@ def main() -> None:
     parser.add_argument("--salida", type=Path, default=RUTA_INFORME)
     args = parser.parse_args()
 
-    resultado = evaluar(cargar_muestra(args.muestra), AnalizadorSentimiento())
+    filas = cargar_muestra(args.muestra)
+    analizador = AnalizadorSentimiento()
+    original = evaluar(filas, analizador)
+    resultado = evaluar(filas, analizador, limpiador=limpiar_texto)
     args.salida.parent.mkdir(parents=True, exist_ok=True)
-    args.salida.write_text(generar_informe(resultado), encoding="utf-8")
+    args.salida.write_text(generar_informe(resultado, original), encoding="utf-8")
     print(f"Sentimiento: {_pct(resultado['sentimiento']['exactitud'])} (F1 macro {_pct(resultado['sentimiento']['f1_macro'])}) | "
           f"Tema: {_pct(resultado['tema']['exactitud'])} | informe: {args.salida}")
 

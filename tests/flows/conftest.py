@@ -15,3 +15,17 @@ def entorno_limpio(tmp_path, monkeypatch):
     monkeypatch.setenv("PUSHGATEWAY_URL", "")
     # Vacia y no borrada: load_dotenv no reemplaza variables que ya existen
     monkeypatch.setenv("YOUTUBE_API_KEY", "")
+
+
+@pytest.fixture(autouse=True)
+def etapas_aisladas(monkeypatch):
+    # Estas pruebas verifican la orquestación, no las etapas de otros paquetes
+    # (limpieza, validaciones, sentimiento), que tienen sus propias pruebas y
+    # necesitan MinIO y Postgres. Aquí apuntan a módulos que no existen, así
+    # quedan "pendientes"; las pruebas que necesitan una etapa la reemplazan.
+    from flows import pipeline
+
+    aisladas = tuple(
+        pipeline.Etapa(e.nombre, f"etapa_inexistente_{e.nombre}:funcion", e.paquete) for e in pipeline.ETAPAS
+    )
+    monkeypatch.setattr(pipeline, "ETAPAS", aisladas)

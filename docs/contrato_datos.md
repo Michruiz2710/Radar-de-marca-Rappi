@@ -15,8 +15,8 @@ El contrato está implementado en código en [`src/common/schema.py`](../src/com
 | `id_original` | texto | Sí | No vacío. `reviewId`, ID del comentario de YouTube o, en noticias, el `id` del feed de Google News (si falta, el enlace) | ✓ | ✓ | ✓ |
 | `texto` | texto | Sí | No vacío. Reseña o comentario; en noticias, el titular | ✓ | ✓ | ✓ |
 | `fecha_publicacion` | fecha y hora UTC | Sí | No puede estar en el futuro (margen de 10 min). En Google Play es la fecha de la versión actual de la reseña: si el usuario la edita, cambia | ✓ | ✓ | ✓ |
-| `idioma` | texto | Sí | Código ISO de 2 letras, por defecto `es` | ✓ | ✓ | ✓ |
-| `pais` | texto | Sí | Código ISO de 2 letras, por defecto `co` | ✓ | ✓ | ✓ |
+| `idioma` | texto | Sí | Código ISO de 2 letras, por defecto `es`. Es el idioma **de la consulta**, no el detectado: el idioma real lo calcula la limpieza (`idioma_detectado`) | ✓ | ✓ | ✓ |
+| `pais` | texto | Sí | Código ISO de 2 letras, por defecto `co`. Es el país **de la consulta**, no el del autor | ✓ | ✓ | ✓ |
 | `fecha_extraccion` | fecha y hora UTC | Sí | Por defecto, el momento de crear el registro | ✓ | ✓ | ✓ |
 | `run_id` | texto | Sí | ID de la corrida, generado con `nuevo_run_id()` | ✓ | ✓ | ✓ |
 | `version_scraper` | texto | Sí | Versión del código que extrajo el dato | ✓ | ✓ | ✓ |

@@ -1,8 +1,6 @@
 """Pruebas del pipeline con SQLite en memoria y un analizador falso (sin torch ni Postgres)."""
 
 import pytest
-
-sqlalchemy = pytest.importorskip("sqlalchemy")
 from sqlalchemy import create_engine, insert, select
 from sqlalchemy.pool import StaticPool
 
@@ -21,6 +19,17 @@ class Falso:
         return [ResultadoSentimiento("negativo", 0.8, 0.1, 0.1, 0.8) for _ in textos]
 
 
+def _fila(n, texto, hash_texto, idioma="es", es_bot=False):
+    return {
+        "id_registro": f"google_play:{n}",
+        "texto_limpio": texto,
+        "hash_texto": hash_texto,
+        "idioma_detectado": idioma,
+        "calificacion": 1,
+        "es_bot": es_bot,
+    }
+
+
 @pytest.fixture
 def motor():
     motor = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
@@ -29,12 +38,11 @@ def motor():
         c.execute(
             insert(tabla.menciones),
             [
-                {"id_registro": "google_play:1", "texto_limpio": "El pedido llegó tarde", "hash_texto": "h1",
-                 "calificacion": 1, "es_bot": False},
-                {"id_registro": "google_play:2", "texto_limpio": "Me cobraron doble", "hash_texto": "h2",
-                 "calificacion": 2, "es_bot": True},
-                {"id_registro": "google_play:3", "texto_limpio": "   ", "hash_texto": "h3",
-                 "calificacion": 3, "es_bot": False},
+                _fila(1, "El pedido llegó tarde", "h1"),
+                _fila(2, "Me cobraron doble", "h2"),
+                _fila(3, "   ", "h3"),
+                _fila(4, "O pedido chegou atrasado", "h4", idioma="pt"),
+                _fila(5, "Gana dinero ya con este link", "h5", es_bot=True),
             ],
         )
     return motor
@@ -42,17 +50,25 @@ def motor():
 
 def _resultados(motor):
     with motor.connect() as c:
-        return {f.id_registro: f for f in c.execute(select(tabla.menciones_nlp))}
+        return {f.id_registro: f for f in c.execute(select(tabla.tabla_sentimiento))}
 
 
-def test_cada_registro_con_texto_recibe_sentimiento_y_tema(motor):
+def test_cada_registro_elegible_recibe_sentimiento_y_tema(motor):
     resumen = correr(motor=motor, analizador=Falso())
     filas = _resultados(motor)
-    assert set(filas) == {"google_play:1", "google_play:2"}  # el texto vacío no se analiza
+    assert set(filas) == {"google_play:1", "google_play:2"}
     assert filas["google_play:1"].tema == "entregas"
-    assert filas["google_play:2"].tema == "cobros_y_pagos"  # los bots también se analizan
+    assert filas["google_play:2"].tema == "cobros_y_pagos"
     assert filas["google_play:1"].version_modelo == "falso@1"
     assert resumen["procesados"] == 2 and resumen["pendientes"] == 0 and resumen["total"] == 2
+
+
+def test_no_analiza_bots_ni_otros_idiomas_ni_texto_vacio(motor):
+    falso = Falso()
+    correr(motor=motor, analizador=falso)
+    assert "O pedido chegou atrasado" not in falso.textos_recibidos  # portugués
+    assert "Gana dinero ya con este link" not in falso.textos_recibidos  # es_bot
+    assert not any(t.strip() == "" for t in falso.textos_recibidos)  # vacío
 
 
 def test_volver_a_correr_no_repite_trabajo(motor):

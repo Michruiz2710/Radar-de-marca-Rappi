@@ -84,6 +84,7 @@ def test_evaluar_y_generar_informe():
          "calificacion": "5", "etiquetado_por": "gabriel"},
     ]
     r = evaluar(filas, _Falso())
+    assert r["texto"] == "original"
     assert r["sentimiento"]["exactitud"] == 0.5
     assert r["tema"]["exactitud"] == 1.0
     assert r["tema"]["entre_detectados"] == 1.0
@@ -92,3 +93,24 @@ def test_evaluar_y_generar_informe():
     informe = generar_informe(r)
     assert "falso@1" in informe and "Matriz de confusión" in informe
     assert "Tema real entre los detectados" in informe
+    assert "Efecto de la limpieza" not in informe  # sin texto original para comparar
+
+
+def test_evaluar_con_limpiador_y_comparar_con_el_original():
+    filas = [
+        {"texto": "  ME COBRARON   doble  ", "sentimiento": "negativo", "tema": "cobros_y_pagos",
+         "calificacion": "1", "etiquetado_por": "sara"},
+    ]
+    vistos = []
+
+    class Registra(_Falso):
+        def analizar(self, textos):
+            vistos.extend(textos)
+            return super().analizar(textos)
+
+    original = evaluar(filas, Registra())
+    limpio = evaluar(filas, Registra(), limpiador=lambda t: " ".join(t.split()).lower())
+    assert vistos == ["  ME COBRARON   doble  ", "me cobraron doble"]  # el limpiador se aplicó antes de analizar
+    assert limpio["texto"] == "limpio"
+    informe = generar_informe(limpio, original)
+    assert "Efecto de la limpieza" in informe and "Texto original" in informe

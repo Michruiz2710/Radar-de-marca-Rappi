@@ -1,11 +1,11 @@
 """Sentimiento y tema para los registros limpios (P2.4).
 
 Lee `<esquema clean>.menciones`, analiza solo los registros pendientes y escribe
-`<esquema clean>.menciones_nlp`. Es idempotente: volver a correrlo no repite trabajo, y si
+`<esquema clean>.sentimiento`. Es idempotente: volver a correrlo no repite trabajo, y si
 cambia el modelo o el texto de un registro, solo ese registro se vuelve a analizar.
 
-Los registros marcados `es_bot` también se analizan (el criterio de P2.4 dice "cada registro
-limpio"); quien los quiera excluir los filtra con `es_bot` al consultar.
+Se analizan solo los registros en español (`idioma_detectado = 'es'`) que no son bots
+(`es_bot = false`), como pide el contrato de la capa clean (docs/contrato_clean.md).
 
 Uso desde el orquestador (P2.1):
 
