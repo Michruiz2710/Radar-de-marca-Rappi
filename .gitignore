@@ -59,3 +59,6 @@ infra/volumes/
 .idea/
 .DS_Store
 Thumbs.db
+
+# --- P2.2: datos de prueba sintéticos sin datos personales para verificación con CI ---
+!quality/datos_prueba/**/*.jsonl
