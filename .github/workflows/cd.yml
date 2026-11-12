@@ -1,0 +1,145 @@
+# CD: levanta el compose completo en el runner con la configuración y los secretos
+# de un entorno y, si funciona, publica las 4 imágenes en ghcr.io.
+#   - Push a main: entorno staging; imágenes con las etiquetas latest y sha-<commit>.
+#   - Release publicada por Michelle (por ejemplo v0.2.0): entorno prod; imágenes con ese número.
+# Los valores de cada entorno están en config/<entorno>.env y las claves en los
+# GitHub Environments "staging" y "prod". El CD no crea releases.
+name: CD
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# No cancela una publicación a medias; la siguiente espera su turno
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRO: ghcr.io/michruiz2710/radar-de-marca-rappi
+  ENTORNO: ${{ github.event_name == 'release' && 'prod' || 'staging' }}
+  COMPOSE: docker compose -f infra/docker-compose.yml --env-file .env --env-file config/${{ github.event_name == 'release' && 'prod' || 'staging' }}.env
+
+jobs:
+  verificar:
+    name: Verificar en ${{ github.event_name == 'release' && 'prod' || 'staging' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: ${{ github.event_name == 'release' && 'prod' || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Las claves salen del GitHub Environment; el resto, de .env.example
+      - name: Preparar .env con los secretos del entorno
+        env:
+          MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          HASH_SALT: ${{ secrets.HASH_SALT }}
+        run: |
+          faltan=""
+          for v in MINIO_ROOT_PASSWORD POSTGRES_PASSWORD HASH_SALT; do
+            [ -n "${!v}" ] || faltan="$faltan $v"
+          done
+          if [ -n "$faltan" ]; then
+            echo "::error::Faltan secretos en el GitHub Environment '$ENTORNO':$faltan"
+            exit 1
+          fi
+          grep -vE '^(MINIO_ROOT_PASSWORD|POSTGRES_PASSWORD|HASH_SALT)=' .env.example > .env
+          for v in MINIO_ROOT_PASSWORD POSTGRES_PASSWORD HASH_SALT; do
+            printf '%s=%s\n' "$v" "${!v}" >> .env
+          done
+
+      - name: Levantar el compose
+        run: $COMPOSE up -d --build
+
+      # Si el orquestador registró sus despliegues en Prefect, funcionan MinIO,
+      # Postgres, Prefect y la imagen del orquestador
+      - name: Comprobar los despliegues del orquestador
+        run: |
+          for i in $(seq 1 36); do
+            n=$(curl -s -X POST http://localhost:4200/api/deployments/filter \
+              -H 'Content-Type: application/json' \
+              -d "{\"deployments\":{\"tags\":{\"all_\":[\"$ENTORNO\"]}}}" \
+              | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
+            echo "Intento $i: $n despliegues de $ENTORNO"
+            if [ "$n" -ge 4 ]; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::El orquestador no registró sus despliegues en 3 minutos"
+          exit 1
+
+      - name: Comprobar el bucket y los esquemas del entorno
+        run: |
+          set -a; . ./.env; . "./config/$ENTORNO.env"; set +a
+          $COMPOSE logs minio-init | grep "Bucket '$MINIO_BUCKET'"
+          n=$($COMPOSE exec -T postgres psql -U "$POSTGRES_USER" -d "${POSTGRES_DB:-radar}" -tAc \
+            "SELECT count(*) FROM information_schema.schemata WHERE schema_name IN ('$PG_SCHEMA_CLEAN', '$PG_SCHEMA_ANALYTICS')")
+          echo "Esquemas encontrados: $n de 2 ($PG_SCHEMA_CLEAN, $PG_SCHEMA_ANALYTICS)"
+          [ "$n" -eq 2 ]
+
+      - name: Mostrar logs si algo falló
+        if: failure()
+        run: |
+          $COMPOSE ps -a
+          $COMPOSE logs --tail 100
+
+      - name: Apagar el entorno
+        if: always()
+        run: $COMPOSE down -v
+
+  publicar:
+    name: Publicar ${{ matrix.nombre }}
+    needs: verificar
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - nombre: scraper-news
+            dockerfile: src/ingestion/news/Dockerfile
+          - nombre: scraper-youtube
+            dockerfile: src/ingestion/youtube/Dockerfile
+          - nombre: scraper-google-play
+            dockerfile: src/ingestion/google_play/Dockerfile
+          - nombre: orquestador
+            dockerfile: flows/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # GITHUB_TOKEN lo crea GitHub en cada corrida; no hay que configurar nada
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRO }}/${{ matrix.nombre }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=short,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ github.event.release.tag_name }},enable=${{ github.event_name == 'release' }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.nombre }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.nombre }}

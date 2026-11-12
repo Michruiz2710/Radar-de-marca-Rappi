@@ -58,6 +58,24 @@ services:
       retries: 12
     restart: unless-stopped
 
+  # --- Crea los esquemas clean y analytics del entorno (P2.5) y termina ---
+  postgres-init:
+    image: postgres:16.6-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-radar}
+      PG_SCHEMA_CLEAN: ${PG_SCHEMA_CLEAN:-clean}
+      PG_SCHEMA_ANALYTICS: ${PG_SCHEMA_ANALYTICS:-analytics}
+    volumes:
+      - ./postgres/crear_esquemas.sh:/crear_esquemas.sh:ro
+    command: sh /crear_esquemas.sh
+    restart: "no"
+
   # --- Orquestador ---
   prefect:
     image: prefecthq/prefect:3.8.8-python3.11
@@ -84,6 +102,7 @@ services:
     build:
       context: ..
       dockerfile: src/ingestion/news/Dockerfile
+    image: ghcr.io/michruiz2710/radar-de-marca-rappi/scraper-news:${IMAGE_TAG:-latest}
     environment:
       MINIO_ENDPOINT: minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -106,6 +125,7 @@ services:
     build:
       context: ..
       dockerfile: src/ingestion/youtube/Dockerfile
+    image: ghcr.io/michruiz2710/radar-de-marca-rappi/scraper-youtube:${IMAGE_TAG:-latest}
     environment:
       MINIO_ENDPOINT: minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -134,6 +154,7 @@ services:
     build:
       context: ..
       dockerfile: src/ingestion/google_play/Dockerfile
+    image: ghcr.io/michruiz2710/radar-de-marca-rappi/scraper-google-play:${IMAGE_TAG:-latest}
     environment:
       MINIO_ENDPOINT: minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -158,8 +179,11 @@ services:
     build:
       context: ..
       dockerfile: flows/Dockerfile
+    image: ghcr.io/michruiz2710/radar-de-marca-rappi/orquestador:${IMAGE_TAG:-latest}
     environment:
       APP_ENV: ${APP_ENV:-dev}
+      PG_SCHEMA_CLEAN: ${PG_SCHEMA_CLEAN:-clean}
+      PG_SCHEMA_ANALYTICS: ${PG_SCHEMA_ANALYTICS:-analytics}
       PREFECT_API_URL: http://prefect:4200/api
       MINIO_ENDPOINT: minio:9000
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
