@@ -26,3 +26,6 @@ fastapi==0.142.2
 # --- P2.3 limpieza (conexión a Postgres compartida en src/common/db.py) ---
 sqlalchemy==2.0.57
 psycopg[binary]==3.2.13
+
+# --- P2.2 validaciones ---
+great_expectations==1.24.1
