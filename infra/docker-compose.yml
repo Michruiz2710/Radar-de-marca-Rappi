@@ -17,7 +17,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Falta MINIO_ROOT_PASSWORD en .env}
     ports:
       - "9000:9000" # API S3 (la usan los scrapers)
-      - "9001:9001" # Consola web
+      - "${MINIO_CONSOLE_PORT:-9001}:9001" # Consola web
     volumes:
       - minio_data:/data
     restart: unless-stopped
@@ -172,6 +172,37 @@ services:
     depends_on:
       - minio
     profiles: ["scrapers"]
+    restart: "no"
+
+  # --- Sentimiento y temas (P2.4): lee clean.menciones, escribe clean.sentimiento y termina ---
+  # Solo CPU, modelo incluido en la imagen. Recursos iniciales: 2 CPU y 4 GB (ajustar midiendo).
+  # No tiene `image:` ni va en el CI/CD: el CI y `make desplegar` no la construyen ni la bajan.
+  nlp:
+    build:
+      context: ..
+      dockerfile: src/transform/nlp/Dockerfile
+      args:
+        # Sin ":?" a propósito: el compose se lee completo aunque el perfil no esté activo.
+        # Si falta, el Dockerfile avisa al construir esta imagen.
+        NLP_MODEL_REVISION: ${NLP_MODEL_REVISION:-}
+    cpus: 2
+    mem_limit: 4g
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-radar}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PG_SCHEMA_CLEAN: ${PG_SCHEMA_CLEAN:-clean}
+      NLP_BATCH_SIZE: ${NLP_BATCH_SIZE:-32}
+    volumes:
+      # Para `make evaluar-nlp`: lee la muestra etiquetada y escribe el informe en docs/
+      - ../data/etiquetas:/app/data/etiquetas:ro
+      - ../docs:/app/docs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["nlp"]
     restart: "no"
 
   # --- Orquestador (P2.1): registra los flujos en Prefect y los corre según su intervalo ---
