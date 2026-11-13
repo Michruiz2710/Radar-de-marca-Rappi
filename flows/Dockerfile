@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src src
 COPY flows flows
+COPY quality quality
 
 # Corre como root porque comparte el volumen google_play_estado con scraper-google-play,
 # que tambien corre como root. Si ambos pasan a un usuario sin privilegios, debe ser el mismo.
