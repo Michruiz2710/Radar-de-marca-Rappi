@@ -22,6 +22,7 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    update,
 )
 from sqlalchemy.dialects import postgresql, sqlite
 
@@ -152,3 +153,50 @@ def cargar(conexion: Connection, esquema: str | None, filas: list[dict]) -> dict
         conexion.execute(insercion, lote)
 
     return resumen
+
+
+def leer_historial(conexion: Connection, esquema: str | None, autores: list[str], desde) -> list[dict]:
+    """Filas ya cargadas que las reglas de bots necesitan para comparar entre corridas.
+
+    Trae, sin noticias: todo lo de los autores de la tanda (para `texto_repetido_autor`
+    y `rafaga`) y todo lo publicado desde `desde` (para `campana_varios_autores`).
+    """
+    conexion = con_esquema(conexion, esquema)
+    columnas = (
+        menciones.c.id_registro,
+        menciones.c.fuente,
+        menciones.c.autor_hash,
+        menciones.c.texto_limpio,
+        menciones.c.fecha_publicacion,
+        menciones.c.id_contenedor,
+        menciones.c.motivo_bot,
+    )
+    filas: dict[str, dict] = {}
+
+    def agregar(resultado):
+        for f in resultado:
+            fila = dict(f._mapping)
+            fila["fecha_publicacion"] = _con_zona(fila["fecha_publicacion"])
+            filas[fila["id_registro"]] = fila
+
+    agregar(conexion.execute(select(*columnas).where(menciones.c.fuente != "news", menciones.c.fecha_publicacion >= desde)))
+    for inicio in range(0, len(autores), _LOTE):
+        consulta = select(*columnas).where(
+            menciones.c.fuente != "news", menciones.c.autor_hash.in_(bindparam("autores", expanding=True))
+        )
+        agregar(conexion.execute(consulta, {"autores": autores[inicio : inicio + _LOTE]}))
+    return list(filas.values())
+
+
+def marcar_bots_anteriores(conexion: Connection, esquema: str | None, cambios: dict[str, str], procesado_en) -> int:
+    """Marca como bot filas que ya estaban cargadas. `cambios` es {id_registro: motivo_bot}."""
+    if not cambios:
+        return 0
+    conexion = con_esquema(conexion, esquema)
+    consulta = (
+        update(menciones)
+        .where(menciones.c.id_registro == bindparam("id"))
+        .values(es_bot=True, motivo_bot=bindparam("motivo"), procesado_en=procesado_en)
+    )
+    conexion.execute(consulta, [{"id": i, "motivo": m} for i, m in cambios.items()])
+    return len(cambios)

@@ -1,6 +1,6 @@
 # Contrato de la capa clean
 
-**Versión de la limpieza:** 1.2.0 · **Autora:** Michelle (P2.3) · **Acordado en la reunión del 9 de noviembre de 2026**
+**Versión de la limpieza:** 1.3.0 · **Autora:** Michelle (P2.3) · **Acordado en la reunión del 9 de noviembre de 2026**
 
 La limpieza lee la capa raw (MinIO) y deja una fila por mención en la tabla `menciones` de Postgres. De esta tabla leen las validaciones (P2.2), el sentimiento (P2.4) y los modelos de dbt (P3.4). Está implementada en [`src/transform/clean/tabla.py`](../src/transform/clean/tabla.py); si este documento y el código no coinciden, manda el código.
 
@@ -65,7 +65,9 @@ El esquema sale de la variable `PG_SCHEMA_CLEAN` (ver `config/<entorno>.env`). E
 | `campana_varios_autores` | El mismo texto, de 40 caracteres o más, lo publicaron 3 o más autores. Las frases cortas o genéricas no cuentan, porque mucha gente real las escribe igual |
 | `rafaga` | 5 o más comentarios del mismo autor en 10 minutos, en 3 o más videos distintos. Una persona conversando en un mismo video no cuenta |
 
-Las noticias nunca se marcan como bot. Las reglas comparan los registros de una misma tanda de limpieza.
+Las noticias nunca se marcan como bot.
+
+**Entre corridas.** Las reglas comparan la tanda de limpieza con las filas que ya están en la tabla (sin noticias): todo el historial de los autores de la tanda, para `texto_repetido_autor` y `rafaga`, y lo publicado en los 30 días anteriores a la tanda, para `campana_varios_autores`. Si una fila ya cargada cumple una de esas tres reglas junto con las nuevas, se marca como bot en la misma carga y su motivo se agrega a los que ya tenía. Una marca nunca se quita sola: para eso hay que volver a correr la carga histórica.
 
 ## Resumen de cada carga
 
@@ -73,11 +75,13 @@ Las noticias nunca se marcan como bot. Las reglas comparan los registros de una 
 
 - `bots` y `bots_por_fuente`: cantidad de filas marcadas como bot.
 - `pct_bots` y `pct_bots_por_fuente`: porcentaje de bots sobre las filas limpias de la tanda (0 a 100). Alimentan la métrica `registros_bot_ratio` de la observabilidad (P3.1).
+- `bots_anteriores`: filas que ya estaban en la tabla y pasaron a ser bot por esta tanda.
 
 ## Limitaciones conocidas
 
 - **Ráfaga solo entre videos.** La regla `rafaga` exige comentarios en 3 o más videos distintos. Un bot que comente muchas veces en un solo video, o en Google Play (que no tiene `id_contenedor`), no se marca por esa regla. Sí lo marca `texto_repetido_autor` si repite el mismo texto.
-- **Reglas de bots dentro de una tanda.** Las reglas comparan solo los registros de la misma tanda de limpieza. Un autor que repite texto en corridas distintas del orquestador no se detecta; solo lo detecta la carga histórica, que procesa todo junto. Seguimiento en un issue aparte: consultar el historial de autores en la tabla y actualizar las filas ya cargadas.
+- **Campañas lentas.** Una campaña cuyos comentarios están separados por más de 30 días no se detecta entre corridas; sí la detecta la carga histórica, que procesa todo junto.
+- **Sentimiento de bots nuevos.** Si una fila ya analizada pasa a ser bot, su sentimiento sigue en `clean.sentimiento`: quien consulte debe unir con `menciones` y filtrar por `es_bot`.
 - **Idioma.** Solo distingue español, portugués e inglés, que son los que aparecen en las fuentes.
 - **Nombres propios.** Se enmascaran correos, teléfonos y números largos, pero no nombres ("soy Ana Pérez"), que no se pueden detectar de forma confiable con reglas.
 - **Comentarios fuera de tema.** Algunos videos nombran a Rappi en el título, pero sus comentarios no hablan de la marca (por ejemplo, videos musicales). No son bots y se conservan; la clasificación por tema (P2.4) puede dejarlos como "otro".
@@ -93,5 +97,6 @@ Las noticias nunca se marcan como bot. Las reglas comparan los registros de una 
 | Versión | Fecha | Cambio |
 | --- | --- | --- |
 | 1.0.0 | 2026-11-10 | Versión inicial |
+| 1.3.0 | 2026-11-14 | Bots entre corridas (#29): las reglas que comparan registros entre sí también miran las filas ya cargadas, y marcan como bot las anteriores cuando corresponde. El resumen agrega `bots_anteriores` |
 | 1.2.0 | 2026-11-11 | Revisión de Jonathan: se conservan los emojis compuestos (antes se quitaba el ZWJ, U+200D, y se partían); se descartan las filas cuyo texto queda vacío al limpiarlo; el resumen reporta el porcentaje de bots total y por fuente |
 | 1.1.0 | 2026-11-10 | Con los datos reales (11.090 filas), las reglas `rafaga` y `promocional` marcaban personas reales: 530 por conversar en un video y 33 repartidores hablando de ganancias. Ahora la ráfaga exige 3 o más videos distintos, y las frases de dinero exigen un enlace |

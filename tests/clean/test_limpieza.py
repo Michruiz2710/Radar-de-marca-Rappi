@@ -202,3 +202,82 @@ def test_varias_fuentes_en_una_corrida(tmp_path, motor):
     tabla = leer_tabla(motor)
     assert resumen["archivos"] == 2 and set(tabla) == {"google_play:r1", "news:n1"}
     assert tabla["news:n1"].es_bot in (0, False) and tabla["google_play:r1"].version_limpieza == VERSION_LIMPIEZA
+
+
+# ---------- bots entre corridas (#29) ----------
+
+TEXTO_LARGO = "Descarga la app y usa mi código de referido para ganar envíos gratis en tu primer pedido"
+
+
+def comentario(id_original, autor="b", texto="Muy buen servicio hoy", minutos=0, video="v1"):
+    fecha = datetime(2026, 11, 5, 10, minutos, tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+    return cruda(
+        id_original, fuente="youtube", calificacion=None, autor_hash=autor * 64, texto=texto,
+        fecha_publicacion=fecha, id_contenedor=video,
+    )
+
+
+def test_mismo_autor_repite_texto_en_dos_corridas(tmp_path, motor):
+    limpiar({"youtube": escribir(tmp_path, "a.jsonl", [comentario("y1", texto="Rappi lo mejor, pidan ya")])}, motor=motor)
+    resumen = limpiar({"youtube": escribir(tmp_path, "b.jsonl", [comentario("y2", texto="Rappi lo mejor, pidan ya", minutos=30)])}, motor=motor)
+    tabla = leer_tabla(motor)
+    assert resumen["bots_anteriores"] == 1
+    assert tabla["youtube:y1"].motivo_bot == "texto_repetido_autor"
+    assert tabla["youtube:y2"].motivo_bot == "texto_repetido_autor"
+
+
+def test_campana_repartida_en_varias_corridas(tmp_path, motor):
+    for i, autor in enumerate("bcd"):
+        limpiar({"youtube": escribir(tmp_path, f"{i}.jsonl", [comentario(f"y{i}", autor=autor, texto=TEXTO_LARGO)])}, motor=motor)
+    tabla = leer_tabla(motor)
+    assert all(tabla[f"youtube:y{i}"].motivo_bot == "campana_varios_autores" for i in range(3))
+
+
+def test_rafaga_repartida_en_dos_corridas(tmp_path, motor):
+    primera = [comentario(f"y{i}", texto=f"comentario {i}", minutos=i, video=f"v{i}") for i in range(3)]
+    segunda = [comentario(f"y{i}", texto=f"comentario {i}", minutos=i, video=f"v{i}") for i in range(3, 5)]
+    limpiar({"youtube": escribir(tmp_path, "a.jsonl", primera)}, motor=motor)
+    assert not any(f.es_bot for f in leer_tabla(motor).values())
+    limpiar({"youtube": escribir(tmp_path, "b.jsonl", segunda)}, motor=motor)
+    assert all(f.motivo_bot == "rafaga" for f in leer_tabla(motor).values())
+
+
+def test_conserva_el_motivo_anterior_y_agrega_el_nuevo(tmp_path, motor):
+    spam = "Rappi gratis, visita mi canal"
+    limpiar({"youtube": escribir(tmp_path, "a.jsonl", [comentario("y1", texto=spam)])}, motor=motor)
+    assert leer_tabla(motor)["youtube:y1"].motivo_bot == "promocional"
+    limpiar({"youtube": escribir(tmp_path, "b.jsonl", [comentario("y2", texto=spam, minutos=5)])}, motor=motor)
+    assert leer_tabla(motor)["youtube:y1"].motivo_bot == "promocional,texto_repetido_autor"
+
+
+def test_corridas_sin_relacion_no_marcan_nada(tmp_path, motor):
+    limpiar({"youtube": escribir(tmp_path, "a.jsonl", [comentario("y1", autor="b")])}, motor=motor)
+    resumen = limpiar({"youtube": escribir(tmp_path, "b.jsonl", [comentario("y2", autor="c", texto="Otro texto")])}, motor=motor)
+    assert resumen["bots_anteriores"] == 0 and not any(f.es_bot for f in leer_tabla(motor).values())
+
+
+def test_repetir_la_misma_corrida_no_es_texto_repetido(tmp_path, motor):
+    ruta = escribir(tmp_path, "a.jsonl", [comentario("y1", texto="Rappi lo mejor, pidan ya")])
+    limpiar({"youtube": ruta}, motor=motor)
+    resumen = limpiar({"youtube": ruta}, motor=motor)
+    assert resumen["bots_anteriores"] == 0 and not leer_tabla(motor)["youtube:y1"].es_bot
+
+
+def test_noticias_repetidas_entre_corridas_no_son_bots(tmp_path, motor):
+    def noticia(i):
+        return cruda(f"n{i}", fuente="news", calificacion=None, autor_hash=None, medio="El Tiempo", texto=TEXTO_LARGO)
+
+    limpiar({"news": escribir(tmp_path, "a.jsonl", [noticia(1)])}, motor=motor)
+    limpiar({"news": escribir(tmp_path, "b.jsonl", [noticia(2)])}, motor=motor)
+    assert not any(f.es_bot for f in leer_tabla(motor).values())
+
+
+def test_transformar_compara_con_el_historial_sin_base_de_datos():
+    historial = [{
+        "id_registro": "youtube:viejo", "fuente": "youtube", "autor_hash": "b" * 64,
+        "texto_limpio": "Rappi lo mejor, pidan ya", "fecha_publicacion": datetime(2026, 11, 1, tzinfo=timezone.utc),
+        "id_contenedor": "v1", "motivo_bot": None,
+    }]
+    filas, resumen = transformar([comentario("y2", texto="Rappi lo mejor, pidan ya")], historial=historial)
+    assert filas[0]["motivo_bot"] == "texto_repetido_autor"
+    assert resumen["bots_anteriores"] == {"youtube:viejo": "texto_repetido_autor"}

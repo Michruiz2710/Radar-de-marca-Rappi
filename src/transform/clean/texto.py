@@ -28,7 +28,7 @@ _RE_NUMERO_LARGO = re.compile(r"(?<![\d.,])\d{7,}(?![\d.,])")
 # quedarían partidos en varios emojis.
 _RE_INVISIBLES = re.compile("[\u200b\u200e\u200f\u2028\u2029\u2060\ufeff]")
 # Lo que no se ve: espacios, uniones de emojis y selectores de variante
-_RE_SIN_CONTENIDO = re.compile("[\s\u200c\u200d\ufe0e\ufe0f]+")
+_RE_SIN_CONTENIDO = re.compile(r"[\s\u200c\u200d\ufe0e\ufe0f]+")
 _RE_ESPACIOS = re.compile(r"\s+")
 _RE_MARCADORES = re.compile(r"\[(?:URL|CORREO|TELEFONO|NUMERO)\]")
 

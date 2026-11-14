@@ -16,22 +16,23 @@ Pasos, en orden:
 3. Quitar duplicados por id_registro: queda la versión más reciente.
 4. Normalizar el texto y enmascarar datos personales (correos, teléfonos, números largos).
 5. Detectar el idioma real de cada texto.
-6. Marcar bots (sin borrarlos).
-7. Cargar en clean.menciones sin duplicar (insertar o actualizar).
+6. Marcar bots (sin borrarlos), comparando también con lo que ya está en la tabla.
+7. Cargar en clean.menciones sin duplicar (insertar o actualizar) y marcar como bot
+   las filas anteriores que, junto con las nuevas, cumplen una regla.
 """
 
 import argparse
 import hashlib
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import Engine
 
 from src.common.db import crear_motor, esquema_clean
 from src.common.storage import leer_registros, listar_rutas
 from src.transform.clean import tabla
-from src.transform.clean.bots import marcar_bots
+from src.transform.clean.bots import MOTIVOS_DE_GRUPO, marcar_bots
 from src.transform.clean.texto import (
     clave_comparacion,
     contar_urls,
@@ -41,7 +42,11 @@ from src.transform.clean.texto import (
 )
 
 # Subirla cuando cambie una regla: así la carga actualiza las filas ya limpiadas.
-VERSION_LIMPIEZA = "1.2.0"
+VERSION_LIMPIEZA = "1.3.0"
+
+# Para la regla de campañas se compara con lo publicado en estos días antes de la tanda.
+# Las reglas por autor comparan con todo su historial.
+DIAS_HISTORIAL_CAMPANA = 30
 
 log = logging.getLogger("limpieza")
 
@@ -111,15 +116,8 @@ def _mas_reciente(a: dict, b: dict) -> dict:
     return max(a, b, key=lambda f: (f["fecha_publicacion"], f["fecha_extraccion"]))
 
 
-def transformar(crudas: list[dict]) -> tuple[list[dict], dict]:
-    """Pasos 2 a 6: de filas raw a filas listas para clean.menciones.
-
-    Es una función pura (no lee ni escribe), así se prueba sin MinIO ni Postgres.
-    Devuelve las filas y un resumen con los conteos.
-    """
-    resumen = {"leidos": len(crudas), "descartados": 0, "duplicados": 0, "bots": 0, "idiomas": {}}
-    procesado_en = datetime.now(timezone.utc)
-
+def _preparar_tanda(crudas: list[dict], resumen: dict) -> list[dict]:
+    """Pasos 2 y 3: descarta filas incompletas y deja una versión por id_registro."""
     unicas: dict[str, dict] = {}
     for cruda in crudas:
         try:
@@ -133,12 +131,33 @@ def transformar(crudas: list[dict]) -> tuple[list[dict], dict]:
             resumen["duplicados"] += 1
             fila = _mas_reciente(anterior, fila)
         unicas[fila["id_registro"]] = fila
+    return list(unicas.values())
 
-    filas = list(unicas.values())
+
+def transformar(crudas: list[dict], historial: list[dict] | None = None) -> tuple[list[dict], dict]:
+    """Pasos 2 a 6: de filas raw a filas listas para clean.menciones.
+
+    `historial` son filas que ya están en la tabla (ver `tabla.leer_historial`): las
+    reglas de bots también comparan contra ellas, para detectar a un autor que repite
+    texto o una campaña repartida en corridas distintas.
+
+    Es una función pura (no lee ni escribe), así se prueba sin MinIO ni Postgres.
+    Devuelve las filas y un resumen con los conteos. Las filas anteriores que pasan
+    a ser bot quedan en `resumen["bots_anteriores"]` como {id_registro: motivo_bot}.
+    """
+    resumen = {"leidos": len(crudas), "descartados": 0, "duplicados": 0, "bots": 0, "idiomas": {}}
+    filas = _preparar_tanda(crudas, resumen)
+    return _completar(filas, resumen, historial or [])
+
+
+def _completar(filas: list[dict], resumen: dict, historial: list[dict]) -> tuple[list[dict], dict]:
+    """Pasos 5 y 6: idioma y bots."""
+    procesado_en = datetime.now(timezone.utc)
     for fila in filas:
         fila["idioma_detectado"] = detectar_idioma(fila["texto_limpio"], fila["idioma_consulta"])
         resumen["idiomas"][fila["idioma_detectado"]] = resumen["idiomas"].get(fila["idioma_detectado"], 0) + 1
 
+    ids_tanda = {f["id_registro"] for f in filas}
     motivos = marcar_bots(
         [
             {
@@ -154,6 +173,7 @@ def transformar(crudas: list[dict]) -> tuple[list[dict], dict]:
             }
             for f in filas
         ]
+        + [_fila_historial(f) for f in historial if f["id_registro"] not in ids_tanda]
     )
     for fila in filas:
         fila["es_bot"] = fila["id_registro"] in motivos
@@ -162,7 +182,43 @@ def transformar(crudas: list[dict]) -> tuple[list[dict], dict]:
         fila["procesado_en"] = procesado_en
         del fila["_n_urls"], fila["_texto_original"]
     resumen.update(_porcentaje_bots(filas))
+    resumen["bots_anteriores"] = _bots_anteriores(historial, ids_tanda, motivos)
     return filas, resumen
+
+
+def _fila_historial(fila: dict) -> dict:
+    """Una fila ya cargada, en el formato de `marcar_bots`.
+
+    Solo se usa para las reglas que comparan registros entre sí: el texto guardado
+    ya tiene los enlaces enmascarados, así que las reglas de una sola fila
+    (enlaces, spam) se calcularon cuando se cargó.
+    """
+    return {
+        "id_registro": fila["id_registro"],
+        "fuente": fila["fuente"],
+        "autor_hash": fila["autor_hash"],
+        "clave": clave_comparacion(fila["texto_limpio"]),
+        "n_urls": 0,
+        "texto_limpio": "",
+        "fecha_publicacion": fila["fecha_publicacion"],
+        "id_contenedor": fila["id_contenedor"],
+    }
+
+
+def _bots_anteriores(historial: list[dict], ids_tanda: set[str], motivos: dict[str, list[str]]) -> dict[str, str]:
+    """Filas ya cargadas que ganan un motivo nuevo al compararlas con la tanda.
+
+    Nunca se quita una marca anterior: para eso habría que volver a mirar todo el historial.
+    """
+    cambios = {}
+    for fila in historial:
+        if fila["id_registro"] in ids_tanda:
+            continue
+        actuales = set(filter(None, (fila.get("motivo_bot") or "").split(",")))
+        nuevos = actuales | (set(motivos.get(fila["id_registro"], [])) & MOTIVOS_DE_GRUPO)
+        if nuevos != actuales:
+            cambios[fila["id_registro"]] = ",".join(sorted(nuevos))
+    return cambios
 
 
 def _porcentaje_bots(filas: list[dict]) -> dict:
@@ -187,6 +243,16 @@ def _porcentaje_bots(filas: list[dict]) -> dict:
     }
 
 
+def _leer_historial(conexion, esquema: str | None, filas: list[dict]) -> list[dict]:
+    """Lo que ya está en la tabla y sirve para comparar con esta tanda (sin noticias)."""
+    candidatas = [f for f in filas if f["fuente"] != "news"]
+    if not candidatas:
+        return []
+    autores = sorted({f["autor_hash"] for f in candidatas if f["autor_hash"]})
+    desde = min(f["fecha_publicacion"] for f in candidatas) - timedelta(days=DIAS_HISTORIAL_CAMPANA)
+    return tabla.leer_historial(conexion, esquema, autores, desde)
+
+
 def limpiar_rutas(rutas: list[str], motor: Engine | None = None, esquema: str | None = None, cliente=None) -> dict:
     """Pasos 1 a 7 para una lista de archivos de la capa raw. Devuelve el resumen."""
     rutas = [r for r in rutas if r]
@@ -195,13 +261,19 @@ def limpiar_rutas(rutas: list[str], motor: Engine | None = None, esquema: str | 
         return {"archivos": 0, "leidos": 0}
 
     crudas = [fila for ruta in rutas for fila in leer_registros(ruta, cliente=cliente)]
-    filas, resumen = transformar(crudas)
+    resumen = {"leidos": len(crudas), "descartados": 0, "duplicados": 0, "bots": 0, "idiomas": {}}
+    filas = _preparar_tanda(crudas, resumen)
 
     motor = motor or crear_motor()
     esquema = esquema or esquema_clean()
     with motor.begin() as conexion:
         tabla.crear_tabla(conexion, esquema)
+        historial = _leer_historial(conexion, esquema, filas)
+        filas, resumen = _completar(filas, resumen, historial)
         resumen.update(tabla.cargar(conexion, esquema, filas))
+        cambios = resumen.pop("bots_anteriores")
+        procesado_en = filas[0]["procesado_en"] if filas else datetime.now(timezone.utc)
+        resumen["bots_anteriores"] = tabla.marcar_bots_anteriores(conexion, esquema, cambios, procesado_en)
 
     resumen["archivos"] = len(rutas)
     log.info("Limpieza terminada: %s", json.dumps(resumen, ensure_ascii=False))
