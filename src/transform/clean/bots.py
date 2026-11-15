@@ -3,8 +3,10 @@
 Los bots NO se borran: se marcan con `es_bot = true` y `motivo_bot` dice por
 qué. Así se puede auditar cada decisión y cambiar una regla sin perder datos.
 
-Las reglas comparan los registros de una misma tanda de limpieza (una corrida
-del orquestador, o toda la carga histórica). Las noticias nunca son bots.
+Las reglas comparan los registros de la tanda de limpieza (una corrida del
+orquestador, o toda la carga histórica) junto con las filas ya cargadas que
+la limpieza trae de la tabla, para detectar bots repartidos en varias corridas.
+Las noticias nunca son bots.
 """
 
 import re
@@ -47,6 +49,10 @@ MOTIVOS = {
     ),
     "promocional": "enlace o frase típica de spam (las frases de dinero solo cuentan con un enlace)",
 }
+
+# Reglas que comparan registros entre sí: son las que pueden marcar una fila ya
+# cargada cuando llega una corrida nueva.
+MOTIVOS_DE_GRUPO = {"texto_repetido_autor", "campana_varios_autores", "rafaga"}
 
 
 def marcar_bots(filas: list[dict]) -> dict[str, list[str]]:
