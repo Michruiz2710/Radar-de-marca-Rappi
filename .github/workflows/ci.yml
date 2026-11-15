@@ -96,3 +96,57 @@ jobs:
           else
             echo "::notice::Todavía no existe 'make validar' (P2.2). Se omite este paso."
           fi
+
+  dbt:
+    name: Modelos dbt
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Postgres de prueba, vacío. Se crean las tablas de clean con el mismo código de P2.3 y P2.4
+    # y se corre dbt build: compila todo, crea las tablas de analytics y corre las pruebas.
+    services:
+      postgres:
+        image: postgres:16.6-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: radar
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d radar"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ci
+      POSTGRES_PASSWORD: ci
+      POSTGRES_DB: radar
+      PG_SCHEMA_CLEAN: clean
+      PG_SCHEMA_ANALYTICS: analytics
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r dbt/requirements-dbt.txt
+
+      - name: Crear las tablas de clean (vacías)
+        run: |
+          python - <<'PY'
+          from src.common.db import crear_motor
+          from src.transform.clean import tabla as menciones
+          from src.transform.nlp import tabla as sentimiento
+          motor = crear_motor()
+          with motor.begin() as conexion:
+              menciones.crear_tabla(conexion, "clean")
+              sentimiento.crear_tabla(conexion, "clean")
+          PY
+
+      - name: dbt build
+        working-directory: dbt
+        run: dbt build --profiles-dir .

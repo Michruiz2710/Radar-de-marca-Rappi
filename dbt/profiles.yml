@@ -1,0 +1,14 @@
+# Conexión a Postgres. Todo sale de variables de entorno: las mismas del .env y de config/<entorno>.env.
+# El esquema de salida es PG_SCHEMA_ANALYTICS (analytics, analytics_staging, analytics_prod).
+radar_rappi:
+  target: entorno
+  outputs:
+    entorno:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
+      port: "{{ env_var('POSTGRES_PORT', '5432') | int }}"
+      user: "{{ env_var('POSTGRES_USER') }}"
+      password: "{{ env_var('POSTGRES_PASSWORD') }}"
+      dbname: "{{ env_var('POSTGRES_DB', 'radar') }}"
+      schema: "{{ env_var('PG_SCHEMA_ANALYTICS', 'analytics') }}"
+      threads: 2

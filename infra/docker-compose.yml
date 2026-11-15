@@ -205,6 +205,28 @@ services:
     profiles: ["nlp"]
     restart: "no"
 
+  # --- Modelos analíticos (P3.4): lee clean y escribe analytics del entorno. make dbt ---
+  dbt:
+    build:
+      context: ..
+      dockerfile: dbt/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-radar}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PG_SCHEMA_CLEAN: ${PG_SCHEMA_CLEAN:-clean}
+      PG_SCHEMA_ANALYTICS: ${PG_SCHEMA_ANALYTICS:-analytics}
+    ports:
+      # Solo para make dbt-docs (documentación y linaje en http://localhost:8080)
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["dbt"]
+    restart: "no"
+
   # --- Orquestador (P2.1): registra los flujos en Prefect y los corre según su intervalo ---
   orquestador:
     build:

@@ -1,0 +1,92 @@
+version: 2
+
+models:
+  - name: fct_menciones
+    description: >
+      Una fila por mención real (sin bots) con sentimiento y tema vigentes. Toda la historia, salvo que se pase la var dias_historia.
+      `analizada` es falso cuando la mención no está en español o todavía no pasa por P2.4;
+      en ese caso `tema` vale 'sin_analizar'.
+    columns:
+      - name: id_registro
+        data_tests: [unique, not_null]
+      - name: fuente
+        data_tests: [not_null]
+      - name: fecha
+        data_tests: [not_null]
+      - name: sentimiento
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["positivo", "neutro", "negativo"]
+      - name: calificacion
+        description: Estrellas de 1 a 5. Solo Google Play.
+      - name: menciona_marca
+        description: Verdadero si el texto nombra a Rappi.
+      - name: analizada
+        data_tests: [not_null]
+
+  - name: agg_sentimiento_diario
+    description: Sentimiento por día (hora de Colombia) y fuente. `indice_neto` va de -1 (todo negativo) a 1 (todo positivo).
+    data_tests:
+      - unicidad_combinada:
+          arguments:
+            columnas: ["fecha", "fuente"]
+    columns:
+      - name: pct_negativo
+        data_tests: [porcentaje_valido]
+      - name: indice_neto
+        description: (positivas - negativas) / analizadas.
+
+  - name: agg_temas
+    description: Menciones y negativas por semana, fuente y tema. Para el top de quejas, ordenar por `negativas`.
+    data_tests:
+      - unicidad_combinada:
+          arguments:
+            columnas: ["semana", "fuente", "tema"]
+    columns:
+      - name: pct_negativo
+        data_tests: [porcentaje_valido]
+
+  - name: agg_calificacion_version
+    description: >
+      Google Play por versión de la app (mayor.menor, por ejemplo 8.42; se juntan los builds diarios).
+      Las reseñas sin versión no entran. Ordenar por `orden_version` y comparar solo las que tienen `muestra_suficiente`.
+    columns:
+      - name: version_app
+        data_tests: [unique, not_null]
+      - name: calificacion_promedio
+        data_tests:
+          - rango:
+              arguments:
+                minimo: 1
+                maximo: 5
+      - name: pct_1_2_estrellas
+        data_tests: [porcentaje_valido]
+
+  - name: agg_respuesta_marca
+    description: Google Play por semana. Tasa de respuesta de Rappi (general y en reseñas de 1 y 2 estrellas) y mediana de horas hasta responder.
+    columns:
+      - name: semana
+        data_tests: [unique, not_null]
+      - name: tasa_respuesta
+        data_tests: [porcentaje_valido]
+      - name: tasa_respuesta_1_2_estrellas
+        data_tests: [porcentaje_valido]
+
+  - name: agg_noticias_vs_sentimiento
+    description: Por día, noticias publicadas y sentimiento negativo en redes y reseñas, para ver si coinciden.
+    columns:
+      - name: fecha
+        data_tests: [unique, not_null]
+      - name: pct_negativo_social
+        data_tests: [porcentaje_valido]
+
+  - name: resumen_fuentes
+    description: Totales por fuente sobre toda la historia de clean (menciones, bots, analizadas, cuántas nombran la marca) y `en_modelos`, cuántas entran a los demás modelos (sin bots y dentro de dias_historia si se usa). Es el único modelo final que cuenta los bots.
+    columns:
+      - name: fuente
+        data_tests: [unique, not_null]
+      - name: pct_bots
+        data_tests: [porcentaje_valido]
+      - name: pct_analizadas
+        data_tests: [porcentaje_valido]
