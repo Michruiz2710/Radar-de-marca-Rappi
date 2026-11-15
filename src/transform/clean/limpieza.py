@@ -143,7 +143,7 @@ def transformar(crudas: list[dict], historial: list[dict] | None = None) -> tupl
 
     Es una función pura (no lee ni escribe), así se prueba sin MinIO ni Postgres.
     Devuelve las filas y un resumen con los conteos. Las filas anteriores que pasan
-    a ser bot quedan en `resumen["bots_anteriores"]` como {id_registro: motivo_bot}.
+    a ser bot quedan en `resumen["marcas_anteriores"]` como {id_registro: motivo_bot}.
     """
     resumen = {"leidos": len(crudas), "descartados": 0, "duplicados": 0, "bots": 0, "idiomas": {}}
     filas = _preparar_tanda(crudas, resumen)
@@ -182,7 +182,7 @@ def _completar(filas: list[dict], resumen: dict, historial: list[dict]) -> tuple
         fila["procesado_en"] = procesado_en
         del fila["_n_urls"], fila["_texto_original"]
     resumen.update(_porcentaje_bots(filas))
-    resumen["bots_anteriores"] = _bots_anteriores(historial, ids_tanda, motivos)
+    resumen["marcas_anteriores"] = _marcas_anteriores(historial, ids_tanda, motivos)
     return filas, resumen
 
 
@@ -205,7 +205,7 @@ def _fila_historial(fila: dict) -> dict:
     }
 
 
-def _bots_anteriores(historial: list[dict], ids_tanda: set[str], motivos: dict[str, list[str]]) -> dict[str, str]:
+def _marcas_anteriores(historial: list[dict], ids_tanda: set[str], motivos: dict[str, list[str]]) -> dict[str, str]:
     """Filas ya cargadas que ganan un motivo nuevo al compararlas con la tanda.
 
     Nunca se quita una marca anterior: para eso habría que volver a mirar todo el historial.
@@ -271,9 +271,9 @@ def limpiar_rutas(rutas: list[str], motor: Engine | None = None, esquema: str | 
         historial = _leer_historial(conexion, esquema, filas)
         filas, resumen = _completar(filas, resumen, historial)
         resumen.update(tabla.cargar(conexion, esquema, filas))
-        cambios = resumen.pop("bots_anteriores")
+        marcas = resumen.pop("marcas_anteriores")
         procesado_en = filas[0]["procesado_en"] if filas else datetime.now(timezone.utc)
-        resumen["bots_anteriores"] = tabla.marcar_bots_anteriores(conexion, esquema, cambios, procesado_en)
+        resumen["bots_anteriores"] = tabla.marcar_bots_anteriores(conexion, esquema, marcas, procesado_en)
 
     resumen["archivos"] = len(rutas)
     log.info("Limpieza terminada: %s", json.dumps(resumen, ensure_ascii=False))

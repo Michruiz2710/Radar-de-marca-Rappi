@@ -280,4 +280,4 @@ def test_transformar_compara_con_el_historial_sin_base_de_datos():
     }]
     filas, resumen = transformar([comentario("y2", texto="Rappi lo mejor, pidan ya")], historial=historial)
     assert filas[0]["motivo_bot"] == "texto_repetido_autor"
-    assert resumen["bots_anteriores"] == {"youtube:viejo": "texto_repetido_autor"}
+    assert resumen["marcas_anteriores"] == {"youtube:viejo": "texto_repetido_autor"}

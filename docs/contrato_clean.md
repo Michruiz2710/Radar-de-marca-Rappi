@@ -80,6 +80,7 @@ Las noticias nunca se marcan como bot.
 ## Limitaciones conocidas
 
 - **Ráfaga solo entre videos.** La regla `rafaga` exige comentarios en 3 o más videos distintos. Un bot que comente muchas veces en un solo video, o en Google Play (que no tiene `id_contenedor`), no se marca por esa regla. Sí lo marca `texto_repetido_autor` si repite el mismo texto.
+- **Frases cortas repetidas.** `texto_repetido_autor` no exige un largo mínimo y, entre corridas, compara con todo el historial del autor. Una persona real que escriba la misma frase corta ("Gracias", "Excelente app") en dos corridas distintas queda marcada como bot, y la marca no se quita sola: solo se corrige volviendo a correr la carga histórica después de ajustar la regla.
 - **Campañas lentas.** Una campaña cuyos comentarios están separados por más de 30 días no se detecta entre corridas; sí la detecta la carga histórica, que procesa todo junto.
 - **Sentimiento de bots nuevos.** Si una fila ya analizada pasa a ser bot, su sentimiento sigue en `clean.sentimiento`: quien consulte debe unir con `menciones` y filtrar por `es_bot`.
 - **Idioma.** Solo distingue español, portugués e inglés, que son los que aparecen en las fuentes.
@@ -97,6 +98,6 @@ Las noticias nunca se marcan como bot.
 | Versión | Fecha | Cambio |
 | --- | --- | --- |
 | 1.0.0 | 2026-11-10 | Versión inicial |
-| 1.3.0 | 2026-11-14 | Bots entre corridas (#29): las reglas que comparan registros entre sí también miran las filas ya cargadas, y marcan como bot las anteriores cuando corresponde. El resumen agrega `bots_anteriores` |
-| 1.2.0 | 2026-11-11 | Revisión de Jonathan: se conservan los emojis compuestos (antes se quitaba el ZWJ, U+200D, y se partían); se descartan las filas cuyo texto queda vacío al limpiarlo; el resumen reporta el porcentaje de bots total y por fuente |
 | 1.1.0 | 2026-11-10 | Con los datos reales (11.090 filas), las reglas `rafaga` y `promocional` marcaban personas reales: 530 por conversar en un video y 33 repartidores hablando de ganancias. Ahora la ráfaga exige 3 o más videos distintos, y las frases de dinero exigen un enlace |
+| 1.2.0 | 2026-11-11 | Revisión de Jonathan: se conservan los emojis compuestos (antes se quitaba el ZWJ, U+200D, y se partían); se descartan las filas cuyo texto queda vacío al limpiarlo; el resumen reporta el porcentaje de bots total y por fuente |
+| 1.3.0 | 2026-11-14 | Bots entre corridas (#29): las reglas que comparan registros entre sí también miran las filas ya cargadas, y marcan como bot las anteriores cuando corresponde. El resumen agrega `bots_anteriores` |
