@@ -18,6 +18,9 @@ from pydantic import ValidationError
 
 from src.common.schema import Fuente, RegistroMencion
 from src.common.storage import guardar_registros, nuevo_run_id
+from src.observability import metricas as obs
+from src.observability.logs import configurar_logs as configurar_logs_comun
+from src.observability.logs import fijar_contexto
 from src.ingestion.news.estado import crear_almacen_estado
 
 VERSION_SCRAPER = "0.1.0"
@@ -27,25 +30,11 @@ CODIGOS_REINTENTABLES = {429, 500, 502, 503, 504}
 log = logging.getLogger("news")
 
 
-class FormatoJson(logging.Formatter):
-    def format(self, record: logging.LogRecord) -> str:
-        datos = {
-            "timestamp": datetime.now(UTC).isoformat(),
-            "nivel": record.levelname,
-            "fuente": Fuente.NEWS.value,
-            "run_id": getattr(record, "run_id", None),
-            "mensaje": record.getMessage(),
-        }
-        datos.update(getattr(record, "extra_datos", {}))
-        return json.dumps(datos, ensure_ascii=False)
-
-
 def configurar_logs() -> None:
-    manejador = logging.StreamHandler(sys.stdout)
-    manejador.setFormatter(FormatoJson())
-    log.handlers[:] = [manejador]
-    log.setLevel(logging.INFO)
-    log.propagate = False
+    """Logs en JSON con el formato común del proyecto (src/observability/logs.py)."""
+    configurar_logs_comun()
+    log.handlers[:] = []
+    log.propagate = True
 
 
 def construir_url() -> str:
@@ -69,10 +58,12 @@ def descargar_feed(url: str, run_id: str, intentos: int = 4, espera_base: float 
             if respuesta.status_code == 200:
                 return respuesta.content
             ultimo_error = RuntimeError(f"HTTP {respuesta.status_code}")
+            obs.contar_error_http("news", respuesta.status_code)
             if respuesta.status_code not in CODIGOS_REINTENTABLES:
                 break
         except requests.RequestException as error:
             ultimo_error = error
+            obs.contar_error_http("news", "conexion")
         log.warning(
             "Falló la descarga del feed",
             extra={"run_id": run_id, "extra_datos": {"intento": intento, "error": str(ultimo_error)}},
@@ -180,6 +171,7 @@ def main() -> int:
     load_dotenv()
     configurar_logs()
     run_id = os.getenv("RUN_ID") or nuevo_run_id()
+    fijar_contexto(fuente="news", run_id=run_id)
     try:
         almacen = None if args.dry_run else crear_almacen_estado()
         correr(construir_url(), almacen, run_id, dry_run=args.dry_run)

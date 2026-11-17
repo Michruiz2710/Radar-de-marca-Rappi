@@ -13,7 +13,7 @@ Orquestación: un flujo por fuente y un flujo principal ingesta → validación 
 | `pipeline.py` | Flujo `pipeline` y un flujo de ingesta por fuente (`ingesta_google_play`, `ingesta_youtube`, `ingesta_news`) |
 | `fuentes.py` | Llama al scraper de cada fuente |
 | `entornos.py` | Parámetros de dev, staging y prod: intervalos y reintentos |
-| `metricas.py` | Ganchos de éxito y fallo que publican métricas en el Pushgateway |
+| `metricas.py` | Ganchos de fin de corrida que publican las métricas de `src/observability` |
 | `servir.py` | Registra los despliegues en Prefect y los deja corriendo |
 | `Dockerfile` | Imagen del servicio `orquestador` |
 
@@ -31,7 +31,7 @@ Orquestación: un flujo por fuente y un flujo principal ingesta → validación 
 - **Reintentos:** cada tarea reintenta 3 veces con espera creciente: 10, 20 y 40 s en dev; 30, 60 y 120 s en staging; 60, 120 y 240 s en prod.
 - **Entorno:** se elige con `APP_ENV` (`dev` por defecto).
 - **YouTube sin clave:** si `YOUTUBE_API_KEY` está vacía, la fuente se omite con un aviso y el flujo no falla.
-- **Métricas:** al terminar, el gancho publica `ultima_corrida_exitosa_timestamp` o `ultima_corrida_fallida_timestamp`, y `fallas_consecutivas`, con la etiqueta `flujo` (por ejemplo `pipeline:news`). La alerta A1 de P3.2 puede usar `fallas_consecutivas >= 2`. Si el Pushgateway no responde, solo queda un aviso en el log.
+- **Métricas y logs (P3.1):** al terminar cada corrida, bien o mal, el gancho publica en el Pushgateway las métricas del pipeline: registros extraídos, errores HTTP, duración, última corrida exitosa, validaciones fallidas, bots, cuota de YouTube y sentimiento negativo de 24 h. Los logs salen en JSON con el `run_id` de la corrida. El detalle está en `src/observability/README.md`. Si el Pushgateway no responde, solo queda un aviso en el log.
 
 ## Etapas de otros paquetes
 
@@ -73,7 +73,6 @@ Hecho: flujos por fuente, flujo principal, programación, reintentos, gancho de 
 **Pendiente:**
 
 - **Validación, limpieza y sentimiento:** quedan `pendiente` hasta que lleguen P2.2, P2.3 y P2.4.
-- **Pushgateway:** lo agrega P3.1; hasta entonces las métricas solo quedan en el log.
 
 **Decisiones a confirmar:**
 

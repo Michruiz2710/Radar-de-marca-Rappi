@@ -18,9 +18,12 @@ from src.common.privacy import hash_autor
 from src.common.schema import Fuente, RegistroMencion
 from src.common.storage import guardar_registros, nuevo_run_id
 from src.ingestion.google_play.marca_agua import MarcaAgua, guardar_marca, leer_marca
+from src.observability import metricas as obs
+from src.observability.logs import configurar_logs, fijar_contexto
 
 VERSION_SCRAPER = "0.1.0"
 TAMANO_PAGINA = 100 # Reseñas por petición a Google Play
+
 
 log = logging.getLogger(__name__)
 
@@ -50,14 +53,20 @@ def a_utc(fecha: datetime | None) -> datetime | None:
 def pedir_pagina(config:Config, token=None) -> tuple[list[dict], object]:
     # Pide una página de reseñas, con reintentos y espera de manera creciente.
     for intento in range(config.max_reintentos):
-       resenas, siguiente_token = reviews(
-            config.app_id,
-            lang=config.idioma,
-            country=config.pais,
-            sort=Sort.NEWEST,
-            count=TAMANO_PAGINA,
-            continuation_token=token,
-        )
+       try:
+           resenas, siguiente_token = reviews(
+                config.app_id,
+                lang=config.idioma,
+                country=config.pais,
+                sort=Sort.NEWEST,
+                count=TAMANO_PAGINA,
+                continuation_token=token,
+            )
+       except Exception as error:
+           # reviews() atrapa casi todos los errores HTTP y devuelve una página vacía; lo poco
+           # que lanza no trae el código, así que queda como "error" (ver src/observability/README.md)
+           obs.contar_error_http("google_play", getattr(error, "code", None) or getattr(error, "status", None) or "error")
+           raise
        if resenas:
            return resenas, siguiente_token
        espera = 2**(intento+1) 
@@ -133,7 +142,8 @@ def correr() -> str | None:
     return ruta
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    configurar_logs()
+    fijar_contexto(fuente="google_play")
     correr()
 
 

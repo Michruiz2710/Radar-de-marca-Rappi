@@ -1,6 +1,6 @@
-# Entorno local del proyecto (P1.1): MinIO, Postgres 16 y Prefect.
+# Entorno local del proyecto (P1.1): MinIO, Postgres 16, Prefect, Prometheus y Pushgateway.
 # Se usa desde la raíz con `make up` (lee el archivo .env de la raíz).
-# Prometheus, Pushgateway, Grafana y Streamlit se agregan en la Semana 3.
+# Grafana y Streamlit se agregan en la Semana 3 (P3.2 y P3.3).
 
 name: radar-rappi
 
@@ -205,6 +205,33 @@ services:
     profiles: ["nlp"]
     restart: "no"
 
+  # --- Observabilidad (P3.1): el orquestador publica en el Pushgateway y Prometheus lo lee ---
+  pushgateway:
+    image: prom/pushgateway:v1.11.3
+    # Guarda en disco lo último publicado, para no perderlo si el contenedor se reinicia
+    command: ["--persistence.file=/data/pushgateway.db", "--persistence.interval=1m"]
+    ports:
+      - "${PUSHGATEWAY_PORT:-9091}:9091"
+    volumes:
+      - pushgateway_data:/data
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/reglas:/etc/prometheus/reglas:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - pushgateway
+    restart: unless-stopped
+
   # --- Orquestador (P2.1): registra los flujos en Prefect y los corre según su intervalo ---
   orquestador:
     build:
@@ -238,7 +265,7 @@ services:
       NEWS_QUERY: ${NEWS_QUERY:-Rappi}
       NEWS_HL: ${NEWS_HL:-es-419}
       NEWS_GL: ${NEWS_GL:-CO}
-      PUSHGATEWAY_URL: ${PUSHGATEWAY_URL:-}
+      PUSHGATEWAY_URL: ${PUSHGATEWAY_URL:-http://pushgateway:9091}
       # Postgres: la limpieza (P2.3) escribe en la capa clean
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -256,9 +283,13 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      pushgateway:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
   minio_data:
   postgres_data:
   google_play_estado:
+  pushgateway_data:
+  prometheus_data:
