@@ -20,8 +20,12 @@ select
     substring(version_app from '^[0-9]+\.[0-9]+') as version_app_corta,
     respuesta_marca is not null as tiene_respuesta,
     fecha_respuesta,
+    -- Horas entre la reseña y la respuesta de Rappi. Si la reseña se editó después de la respuesta,
+    -- Google Play solo guarda la fecha de la edición y se pierde la original (docs/contrato_datos.md,
+    -- "Reseñas editadas"): ahí no se puede calcular y queda vacío. agg_respuesta_marca_semanal
+    -- cuenta esas respuestas aparte para que se sepa sobre cuántas se calcula la mediana.
     case
-        when fecha_respuesta is not null and fecha_respuesta >= fecha_publicacion
+        when fecha_respuesta is not null and not coalesce(editada_tras_respuesta, false)
             then round(extract(epoch from fecha_respuesta - fecha_publicacion) / 3600.0, 1)
     end as horas_hasta_respuesta,
     editada_tras_respuesta,

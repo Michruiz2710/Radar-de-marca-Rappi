@@ -101,8 +101,8 @@ jobs:
     name: Modelos dbt
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Postgres de prueba, vacío. Se crean las tablas de clean con el mismo código de P2.3 y P2.4
-    # y se corre dbt build: compila todo, crea las tablas de analytics y corre las pruebas.
+    # Postgres de prueba con 9 menciones inventadas (dbt/datos_ci.py), cargadas con el mismo código
+    # de P2.3 y P2.4. dbt build crea analytics y corre las pruebas, y al final se revisan resultados conocidos.
     services:
       postgres:
         image: postgres:16.6-alpine
@@ -135,18 +135,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r dbt/requirements-dbt.txt
 
-      - name: Crear las tablas de clean (vacías)
-        run: |
-          python - <<'PY'
-          from src.common.db import crear_motor
-          from src.transform.clean import tabla as menciones
-          from src.transform.nlp import tabla as sentimiento
-          motor = crear_motor()
-          with motor.begin() as conexion:
-              menciones.crear_tabla(conexion, "clean")
-              sentimiento.crear_tabla(conexion, "clean")
-          PY
+      - name: Cargar datos de prueba en clean
+        run: PYTHONPATH=. python dbt/datos_ci.py
 
       - name: dbt build
         working-directory: dbt
         run: dbt build --profiles-dir .
+
+      - name: Revisar resultados conocidos
+        run: PYTHONPATH=. python dbt/datos_ci.py --verificar

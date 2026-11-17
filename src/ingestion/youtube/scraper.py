@@ -31,6 +31,9 @@ from datetime import UTC, datetime
 from dotenv import load_dotenv
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+from src.observability import metricas as obs
+from src.observability.logs import configurar_logs, contexto
 from pydantic import ValidationError
 
 from src.common.privacy import hash_autor
@@ -86,6 +89,7 @@ class ScraperYouTube:
             try:
                 return peticion.execute()
             except HttpError as error:
+                obs.contar_error_http("youtube", error.resp.status)
                 if error.resp.status >= 500 and intento < intentos - 1:
                     espera = 2 ** intento
                     log.warning("YouTube respondió %s, reintento en %ss", error.resp.status, espera)
@@ -200,7 +204,8 @@ class ScraperYouTube:
 
 def main(argv: list[str] | None = None, youtube=None) -> str | None:
     load_dotenv()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    if not logging.getLogger().handlers:  # solo al correrlo solo; en el orquestador ya está configurado
+        configurar_logs()
     parser = argparse.ArgumentParser(description="Scraper de comentarios de YouTube sobre Rappi")
     parser.add_argument("--full", action="store_true", help="ignorar la marca de agua")
     args = parser.parse_args(argv)
@@ -218,13 +223,18 @@ def main(argv: list[str] | None = None, youtube=None) -> str | None:
         youtube=youtube,
     )
     run_id = nuevo_run_id()
-    registros = scraper.correr(
-        consultas,
-        max_busquedas=int(os.getenv("YT_MAX_SEARCHES_PER_DAY", "3")),
-        max_comentarios=int(os.getenv("YT_MAX_COMMENTS_PER_VIDEO", "500")),
-        run_id=run_id,
-        desde=marca,
-    )
+    try:
+        with contexto(fuente="youtube"):
+            registros = scraper.correr(
+                consultas,
+                max_busquedas=int(os.getenv("YT_MAX_SEARCHES_PER_DAY", "3")),
+                max_comentarios=int(os.getenv("YT_MAX_COMMENTS_PER_VIDEO", "500")),
+                run_id=run_id,
+                desde=marca,
+            )
+    finally:
+        # Lo gastado cuenta aunque la corrida falle (cuota_youtube_usada, alerta A7)
+        obs.sumar_cuota_youtube(scraper.cuota_usada)
     if not registros:
         log.info("no hay comentarios nuevos")
         return None

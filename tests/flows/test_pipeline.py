@@ -65,9 +65,9 @@ def test_falla_definitiva_activa_el_gancho(prefect_local, sin_esperas, monkeypat
 
     monkeypatch.setattr(fuentes, "SCRAPERS", {"news": siempre_falla})
     pipeline.pipeline(fuentes=["news"], return_state=True)
-    from flows import metricas
+    from src.observability import metricas
 
-    assert metricas._leer_fallas() == {"pipeline:news": 1}
+    assert metricas._leer()["flujos"]["pipeline:news"]["fallas"] == 1
 
 
 def test_etapa_existente_recibe_las_rutas(prefect_local, scrapers_falsos, monkeypatch):
@@ -100,3 +100,31 @@ def test_resolver_distingue_pendiente_de_error():
     assert pipeline.resolver("paquete_inexistente.modulo:funcion") is None
     assert pipeline.resolver("flows.pipeline:no_existe") is None
     assert pipeline.resolver("flows.pipeline:resolver") is pipeline.resolver
+
+
+def test_cuenta_los_registros_extraidos(prefect_local, scrapers_falsos, monkeypatch):
+    from src.common import storage
+    from src.observability import metricas
+
+    monkeypatch.setattr(storage, "leer_registros", lambda ruta, cliente=None: [{}, {}, {}])
+    pipeline.pipeline(fuentes=["news"])
+    assert metricas._leer()["registros"]["news"] == 3
+
+
+def test_cuenta_las_validaciones_fallidas_aunque_se_detenga(prefect_local, sin_esperas, scrapers_falsos, monkeypatch):
+    from quality.checkpoints import ValidacionCriticaError
+    from src.observability import metricas
+
+    modulo = types.ModuleType("calidad_con_resumen")
+
+    def validar(rutas):
+        resumen = {"suite": "raw_news", "criticas": [{"regla": "a"}], "advertencias": [{"regla": "b"}, {"regla": "c"}]}
+        raise ValidacionCriticaError("regla crítica", [resumen])
+
+    modulo.validar = validar
+    monkeypatch.setitem(sys.modules, "calidad_con_resumen", modulo)
+    monkeypatch.setattr(pipeline, "ETAPAS", (pipeline.Etapa("validacion_cruda", "calidad_con_resumen:validar", "P2.2"),))
+    assert pipeline.pipeline(fuentes=["news"], return_state=True).is_failed()
+    # 4 intentos de la tarea (1 + 3 reintentos): cada intento cuenta lo que encontró
+    validaciones = metricas._leer()["validaciones"]
+    assert validaciones["raw_news|critica"] == 4 and validaciones["raw_news|advertencia"] == 8

@@ -296,7 +296,9 @@ def main(argv: list[str] | None = None) -> dict:
     parser.add_argument("--fuente", choices=["google_play", "youtube", "news"], help="solo esta fuente")
     args = parser.parse_args(argv)
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    from src.observability.logs import configurar_logs
+
+    configurar_logs()
     from dotenv import load_dotenv
 
     load_dotenv()

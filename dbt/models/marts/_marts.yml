@@ -3,49 +3,119 @@ version: 2
 models:
   - name: fct_menciones
     description: >
-      Una fila por mención real (sin bots) con sentimiento y tema vigentes. Toda la historia, salvo que se pase la var dias_historia.
-      `analizada` es falso cuando la mención no está en español o todavía no pasa por P2.4;
-      en ese caso `tema` vale 'sin_analizar'.
+      Una fila por mención real (sin bots) con su sentimiento y tema vigentes. Es la tabla base
+      del dashboard y de los demás modelos. Toda la historia, salvo que se pase la var dias_historia.
     columns:
       - name: id_registro
+        description: Llave de la mención, igual que en clean.menciones (fuente:id_original).
         data_tests: [unique, not_null]
       - name: fuente
+        description: google_play, youtube o news.
         data_tests: [not_null]
       - name: fecha
+        description: Día de publicación en hora de Colombia.
+        data_tests: [not_null]
+      - name: semana
+        description: Lunes de la semana de publicación, en hora de Colombia.
+      - name: fecha_publicacion
+        description: Fecha y hora de publicación en UTC. En Google Play es la de la versión actual de la reseña.
+      - name: texto_limpio
+        description: Texto ya limpio y con datos personales enmascarados (P2.3).
+      - name: idioma_detectado
+        description: es, en o pt. Solo las de español tienen sentimiento.
+      - name: calificacion
+        description: Estrellas de 1 a 5. Solo Google Play.
+      - name: likes
+        description: Me gusta de la reseña o del comentario. Vacío en noticias.
+      - name: version_app
+        description: Versión completa de la app (8.42.20261030-90052). Solo Google Play.
+      - name: version_app_corta
+        description: Versión mayor.menor (8.42), la que se usa para comparar.
+      - name: tiene_respuesta
+        description: Verdadero si Rappi respondió la reseña.
+      - name: editada_tras_respuesta
+        description: Verdadero si la reseña se editó después de la respuesta de Rappi.
+      - name: horas_hasta_respuesta
+        description: >
+          Horas entre la reseña y la respuesta de Rappi. Vacío si no hubo respuesta o si la reseña
+          se editó después (Google Play no guarda la fecha original).
+      - name: medio
+        description: Medio de la noticia. Solo noticias.
+      - name: id_contenedor
+        description: Video al que pertenece el comentario. Solo YouTube.
+      - name: menciona_marca
+        description: Verdadero si el texto nombra a Rappi.
+      - name: analizada
+        description: Verdadero si tiene sentimiento vigente (mismo texto que se analizó en P2.4).
         data_tests: [not_null]
       - name: sentimiento
+        description: positivo, neutro o negativo. Vacío si no está analizada.
         data_tests:
           - accepted_values:
               arguments:
                 values: ["positivo", "neutro", "negativo"]
-      - name: calificacion
-        description: Estrellas de 1 a 5. Solo Google Play.
-      - name: menciona_marca
-        description: Verdadero si el texto nombra a Rappi.
-      - name: analizada
-        data_tests: [not_null]
+      - name: puntaje_sentimiento
+        description: 1 positivo, 0 neutro, -1 negativo. Sirve para promediar.
+      - name: prob_sentimiento
+        description: Probabilidad que el modelo le dio a la clase elegida.
+      - name: prob_negativo
+        description: Probabilidad de que sea negativa.
+      - name: tema
+        description: Tema principal del diccionario de P2.4, o sin_analizar.
+      - name: temas_detectados
+        description: Todos los temas con coincidencia, separados por coma.
+      - name: version_modelo
+        description: Modelo y versión con que se calculó el sentimiento.
 
   - name: agg_sentimiento_diario
-    description: Sentimiento por día (hora de Colombia) y fuente. `indice_neto` va de -1 (todo negativo) a 1 (todo positivo).
+    description: Sentimiento por día (hora de Colombia) y fuente.
     data_tests:
       - unicidad_combinada:
           arguments:
             columnas: ["fecha", "fuente"]
     columns:
+      - name: fecha
+        description: Día en hora de Colombia.
+      - name: fuente
+        description: google_play, youtube o news.
+      - name: menciones
+        description: Menciones reales del día.
+      - name: analizadas
+        description: Menciones con sentimiento vigente.
+      - name: positivas
+        description: Menciones positivas.
+      - name: neutras
+        description: Menciones neutras.
+      - name: negativas
+        description: Menciones negativas.
       - name: pct_negativo
+        description: negativas / analizadas, de 0 a 1.
         data_tests: [porcentaje_valido]
       - name: indice_neto
-        description: (positivas - negativas) / analizadas.
+        description: (positivas - negativas) / analizadas. Va de -1 (todo negativo) a 1 (todo positivo).
 
-  - name: agg_temas
+  - name: agg_temas_semanal
     description: Menciones y negativas por semana, fuente y tema. Para el top de quejas, ordenar por `negativas`.
     data_tests:
       - unicidad_combinada:
           arguments:
             columnas: ["semana", "fuente", "tema"]
     columns:
+      - name: semana
+        description: Lunes de la semana, en hora de Colombia.
+      - name: fuente
+        description: google_play, youtube o news.
+      - name: tema
+        description: Tema principal (entregas, cobros_y_pagos, soporte, precios, app, repartidores, otro).
+      - name: menciones
+        description: Menciones analizadas con ese tema.
+      - name: negativas
+        description: De esas, cuántas son negativas.
       - name: pct_negativo
+        description: negativas / menciones, de 0 a 1.
         data_tests: [porcentaje_valido]
+      - name: calificacion_promedio
+        description: Estrellas promedio. Solo tiene valor en Google Play.
 
   - name: agg_calificacion_version
     description: >
@@ -53,40 +123,105 @@ models:
       Las reseñas sin versión no entran. Ordenar por `orden_version` y comparar solo las que tienen `muestra_suficiente`.
     columns:
       - name: version_app
+        description: Versión mayor.menor (8.42).
         data_tests: [unique, not_null]
+      - name: orden_version
+        description: Número para ordenar las versiones (8.8 antes que 8.11).
+      - name: resenas
+        description: Reseñas reales con esa versión.
+      - name: builds
+        description: Cuántos builds distintos se juntaron.
+      - name: muestra_suficiente
+        description: Verdadero si tiene al menos min_resenas_version reseñas (10 por defecto).
       - name: calificacion_promedio
+        description: Estrellas promedio.
         data_tests:
           - rango:
               arguments:
                 minimo: 1
                 maximo: 5
       - name: pct_1_2_estrellas
+        description: Reseñas de 1 o 2 estrellas / reseñas, de 0 a 1.
         data_tests: [porcentaje_valido]
+      - name: pct_negativo
+        description: Negativas / analizadas, de 0 a 1.
+      - name: primera_resena
+        description: Día de la primera reseña con esa versión.
+      - name: ultima_resena
+        description: Día de la última reseña con esa versión.
 
-  - name: agg_respuesta_marca
-    description: Google Play por semana. Tasa de respuesta de Rappi (general y en reseñas de 1 y 2 estrellas) y mediana de horas hasta responder.
+  - name: agg_respuesta_marca_semanal
+    description: >
+      Google Play por semana: tasa de respuesta de Rappi (general y en reseñas de 1 y 2 estrellas)
+      y mediana de horas hasta responder.
     columns:
       - name: semana
+        description: Lunes de la semana, en hora de Colombia.
         data_tests: [unique, not_null]
+      - name: resenas
+        description: Reseñas reales de la semana.
+      - name: respondidas
+        description: Reseñas con respuesta de Rappi.
       - name: tasa_respuesta
+        description: respondidas / resenas, de 0 a 1.
         data_tests: [porcentaje_valido]
+      - name: resenas_1_2_estrellas
+        description: Reseñas de 1 o 2 estrellas.
       - name: tasa_respuesta_1_2_estrellas
+        description: Respondidas / reseñas de 1 o 2 estrellas, de 0 a 1.
         data_tests: [porcentaje_valido]
+      - name: respondidas_con_tiempo
+        description: Respuestas con horas calculables. La mediana se calcula sobre estas.
+      - name: respondidas_editadas
+        description: Respuestas a reseñas editadas después; no entran en la mediana porque se perdió la fecha original.
+      - name: horas_mediana_respuesta
+        description: Mediana de horas entre la reseña y la respuesta.
 
   - name: agg_noticias_vs_sentimiento
     description: Por día, noticias publicadas y sentimiento negativo en redes y reseñas, para ver si coinciden.
     columns:
       - name: fecha
+        description: Día en hora de Colombia.
         data_tests: [unique, not_null]
+      - name: noticias
+        description: Noticias publicadas ese día.
+      - name: medios
+        description: Medios de esas noticias, separados por coma.
+      - name: menciones_social
+        description: Menciones reales de YouTube y Google Play ese día.
+      - name: negativas_social
+        description: De esas, cuántas son negativas.
       - name: pct_negativo_social
+        description: negativas_social / analizadas, de 0 a 1.
         data_tests: [porcentaje_valido]
 
   - name: resumen_fuentes
-    description: Totales por fuente sobre toda la historia de clean (menciones, bots, analizadas, cuántas nombran la marca) y `en_modelos`, cuántas entran a los demás modelos (sin bots y dentro de dias_historia si se usa). Es el único modelo final que cuenta los bots.
+    description: >
+      Totales por fuente sobre toda la historia de clean y `en_modelos`, cuántas entran a los demás
+      modelos. Es el único modelo final que cuenta los bots.
     columns:
       - name: fuente
+        description: google_play, youtube o news.
         data_tests: [unique, not_null]
+      - name: menciones_total
+        description: Todas las filas de clean.menciones de la fuente, con bots.
+      - name: bots
+        description: Filas marcadas como bot en la limpieza.
       - name: pct_bots
+        description: bots / menciones_total, de 0 a 1.
         data_tests: [porcentaje_valido]
+      - name: analizadas
+        description: Menciones reales con sentimiento vigente.
       - name: pct_analizadas
+        description: analizadas / menciones reales, de 0 a 1.
         data_tests: [porcentaje_valido]
+      - name: pct_menciona_marca
+        description: Menciones reales que nombran a Rappi / menciones reales, de 0 a 1.
+      - name: en_modelos
+        description: Menciones que llegan a fct_menciones (sin bots y dentro de dias_historia si se usa).
+      - name: primera_fecha
+        description: Primer día con datos de la fuente.
+      - name: ultima_fecha
+        description: Último día con datos de la fuente.
+      - name: actualizado_en
+        description: Cuándo corrió dbt por última vez.

@@ -114,7 +114,9 @@ def correr(
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    from src.observability.logs import configurar_logs
+
+    configurar_logs()
     resumen = correr()
     print(json.dumps(resumen, ensure_ascii=False, indent=2))
     if resumen["pendientes"]:

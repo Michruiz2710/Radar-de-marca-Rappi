@@ -27,6 +27,7 @@ select
     m.version_app,
     m.version_app_corta,
     m.tiene_respuesta,
+    m.editada_tras_respuesta,
     m.horas_hasta_respuesta,
     m.medio,
     m.id_contenedor,

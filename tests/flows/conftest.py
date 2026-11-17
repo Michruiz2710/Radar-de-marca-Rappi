@@ -29,3 +29,14 @@ def etapas_aisladas(monkeypatch):
         pipeline.Etapa(e.nombre, f"etapa_inexistente_{e.nombre}:funcion", e.paquete) for e in pipeline.ETAPAS
     )
     monkeypatch.setattr(pipeline, "ETAPAS", aisladas)
+
+
+@pytest.fixture(autouse=True)
+def metricas_aisladas(monkeypatch):
+    # Sin Postgres en las pruebas: las métricas de la capa clean quedan vacías
+    from src.observability import consultas, metricas
+
+    monkeypatch.setattr(consultas, "calcular", lambda *a, **k: {})
+    metricas._tomar_pendiente()
+    yield
+    metricas._tomar_pendiente()

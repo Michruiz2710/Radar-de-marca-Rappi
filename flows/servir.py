@@ -14,6 +14,7 @@ from prefect import serve
 
 from flows.entornos import Entorno, entorno_actual
 from flows.pipeline import pipeline
+from src.observability.logs import configurar_logs
 
 
 def crear_despliegues(entorno: Entorno):
@@ -31,6 +32,7 @@ def crear_despliegues(entorno: Entorno):
 
 
 def main() -> None:
+    configurar_logs()
     serve(*crear_despliegues(entorno_actual()))
 
 
