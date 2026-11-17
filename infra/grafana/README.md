@@ -93,4 +93,4 @@ Hecho: Grafana en el compose, fuente de datos y dashboard técnico como código,
 
 Los runbooks de cada alerta están en [`docs/runbooks/`](../../docs/runbooks/README.md).
 
-**Pendiente:** `scripts/simular_fallo.sh`, para la demo.
+Para la demo, `scripts/simular_fallo.sh` provoca un fallo y mide cuánto tarda Grafana en dispararlo (ver `scripts/README.md`).
