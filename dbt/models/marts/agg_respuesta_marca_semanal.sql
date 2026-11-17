@@ -14,7 +14,7 @@ select
     ) as tasa_respuesta_1_2_estrellas,
     count(*) filter (where horas_hasta_respuesta is not null) as respondidas_con_tiempo,
     count(*) filter (where tiene_respuesta and editada_tras_respuesta) as respondidas_editadas,
-    percentile_cont(0.5) within group (order by horas_hasta_respuesta) as horas_mediana_respuesta
+    round((percentile_cont(0.5) within group (order by horas_hasta_respuesta))::numeric, 1) as horas_mediana_respuesta
 from {{ ref('fct_menciones') }}
 where fuente = 'google_play'
 group by semana
