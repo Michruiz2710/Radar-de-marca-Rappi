@@ -28,7 +28,7 @@ check-env:
 
 up: check-env
 	$(COMPOSE) up -d --build
-	@echo "Listo. MinIO: http://localhost:9001 | Prefect: http://localhost:4200"
+	@echo "Listo. MinIO: http://localhost:9001 | Prefect: http://localhost:4200 | Grafana: http://localhost:3000"
 
 down: check-env
 	$(COMPOSE) down
@@ -65,7 +65,7 @@ lint:
 desplegar: check-env
 	$(COMPOSE) pull
 	$(COMPOSE) up -d --no-build
-	@echo "Listo. MinIO: http://localhost:9001 | Prefect: http://localhost:4200"
+	@echo "Listo. MinIO: http://localhost:9001 | Prefect: http://localhost:4200 | Grafana: http://localhost:3000"
 
 # Validaciones de calidad: datos de prueba
 # Para validar también con capa raw

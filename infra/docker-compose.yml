@@ -1,6 +1,6 @@
 # Entorno local del proyecto (P1.1): MinIO, Postgres 16, Prefect, Prometheus y Pushgateway.
 # Se usa desde la raíz con `make up` (lee el archivo .env de la raíz).
-# Grafana y Streamlit se agregan en la Semana 3 (P3.2 y P3.3).
+# Grafana (P3.2) ya está; Streamlit se agrega con P3.3.
 
 name: radar-rappi
 
@@ -232,6 +232,25 @@ services:
       - pushgateway
     restart: unless-stopped
 
+  # --- Dashboard técnico y alertas (P3.2): todo se carga desde infra/grafana (provisioning) ---
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Falta GRAFANA_ADMIN_PASSWORD en .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
   # --- Orquestador (P2.1): registra los flujos en Prefect y los corre según su intervalo ---
   orquestador:
     build:
@@ -299,3 +318,4 @@ volumes:
   google_play_estado:
   pushgateway_data:
   prometheus_data:
+  grafana_data:

@@ -14,6 +14,7 @@
 | `minio-init` | `python:3.11-slim` | — | Crea el bucket `radar-rappi` al iniciar y termina |
 | `postgres` | `postgres:16.6-alpine` | 5432 | Base `radar` (capas clean y analytics) y base `prefect` |
 | `prefect` | `prefecthq/prefect:3.1.5-python3.11` | 4200 | Servidor y UI del orquestador |
+| `grafana` | `grafana/grafana:11.4.0` | 3000 | Dashboard técnico y alertas (P3.2; ver `grafana/README.md`) |
 
 Que `minio-init` aparezca como `Exited (0)` es lo normal: crea el bucket y termina.
 
