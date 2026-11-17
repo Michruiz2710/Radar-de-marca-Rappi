@@ -17,7 +17,7 @@ El orquestador publica sus métricas en el Pushgateway al final de cada corrida,
 
 Los puertos se cambian con `PUSHGATEWAY_PORT` y `PROMETHEUS_PORT` en `.env`. Prometheus guarda 30 días de datos en el volumen `prometheus_data`, y el Pushgateway guarda lo último publicado en `pushgateway_data`.
 
-Las reglas de alerta de P3.2 van en `reglas/` como archivos `.yml`; Prometheus las carga al arrancar.
+Las alertas de P3.2 no se evalúan en Prometheus sino en Grafana (`infra/grafana/provisioning/alerting`), que ya lee de aquí las mismas métricas. La carpeta `reglas/` sigue montada: cualquier `.yml` que se ponga ahí, Prometheus lo carga al arrancar.
 
 ## Cómo comprobarlo
 
