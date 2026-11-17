@@ -91,4 +91,6 @@ Con un servidor de correo de prueba en el computador (Mailpit), métricas falsas
 
 Hecho: Grafana en el compose, fuente de datos y dashboard técnico como código, reglas A1–A7, correo como punto de contacto y políticas de notificación.
 
-**Pendiente (siguiente commit de P3.2):** runbooks en `docs/runbooks/` y `scripts/simular_fallo.sh`.
+Los runbooks de cada alerta están en [`docs/runbooks/`](../../docs/runbooks/README.md).
+
+**Pendiente:** `scripts/simular_fallo.sh`, para la demo.
