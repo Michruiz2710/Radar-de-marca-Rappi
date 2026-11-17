@@ -63,7 +63,8 @@ def pedir_pagina(config:Config, token=None) -> tuple[list[dict], object]:
                 continuation_token=token,
             )
        except Exception as error:
-           # La librería no siempre expone el código HTTP; si no lo trae, queda como "error"
+           # reviews() atrapa casi todos los errores HTTP y devuelve una página vacía; lo poco
+           # que lanza no trae el código, así que queda como "error" (ver src/observability/README.md)
            obs.contar_error_http("google_play", getattr(error, "code", None) or getattr(error, "status", None) or "error")
            raise
        if resenas:

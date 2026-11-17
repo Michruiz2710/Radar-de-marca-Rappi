@@ -27,4 +27,10 @@ Las reglas de alerta de P3.2 van en `reglas/` como archivos `.yml`; Prometheus l
 
 ## Estado
 
-Hecho. Falta comprobar en Docker el criterio de aceptación de P3.1.
+Hecho y comprobado en Docker (criterio de aceptación de P3.1):
+
+1. `docker compose ... up -d --build`: `prometheus` y `pushgateway` quedan `Up`, y en http://localhost:9090/targets los dos destinos salen **UP**.
+2. Se corrió `pipeline/todas-dev`, luego `make nlp` y otra vez `pipeline/todas-dev`; las dos corridas terminaron en **Completed**.
+3. En http://localhost:9090 la consulta `count by (__name__) ({job="radar_pipeline"})` muestra las 8 métricas de la ruta de trabajo y `fallas_consecutivas`, además de `push_time_seconds` y `push_failure_time_seconds`, que agrega el Pushgateway.
+
+`ultima_corrida_fallida_timestamp` no aparece en esa prueba porque solo se publica después de una corrida fallida.

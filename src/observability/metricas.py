@@ -1,6 +1,8 @@
 """Métricas del pipeline publicadas en el Pushgateway (P3.1).
 
-Las 8 métricas de la ruta de trabajo más dos de apoyo para las alertas:
+Publica 10 métricas: las 8 que pide la ruta de trabajo y 2 de apoyo para las alertas de P3.2.
+
+Las 8 de la ruta de trabajo:
 
 | Métrica                              | Tipo        | Etiquetas          |
 | ------------------------------------ | ----------- | ------------------ |
@@ -12,8 +14,15 @@ Las 8 métricas de la ruta de trabajo más dos de apoyo para las alertas:
 | registros_bot_ratio                  | gauge       | fuente             |
 | cuota_youtube_usada                  | gauge       | —                  |
 | sentimiento_negativo_24h_ratio       | gauge       | fuente             |
-| ultima_corrida_fallida_timestamp     | gauge       | flujo              |
+
+Las 2 de apoyo:
+
+| Métrica                              | Tipo        | Etiquetas          |
+| ------------------------------------ | ----------- | ------------------ |
 | fallas_consecutivas                  | gauge       | flujo  (alerta A1) |
+| ultima_corrida_fallida_timestamp     | gauge       | flujo              |
+
+``flujo`` vale pipeline:news, pipeline:google_play, pipeline:youtube o pipeline (todas).
 
 Cómo funciona: durante una corrida, el código llama a ``contar_*``; esos valores quedan
 en memoria. Al final, ``registrar_corrida`` los suma a los acumulados guardados en
