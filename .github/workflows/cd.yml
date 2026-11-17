@@ -30,7 +30,7 @@ jobs:
   verificar:
     name: Verificar en ${{ github.event_name == 'release' && 'prod' || 'staging' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45 # incluye construir el orquestador con torch y el modelo de sentimiento
     environment: ${{ github.event_name == 'release' && 'prod' || 'staging' }}
     steps:
       - uses: actions/checkout@v4
@@ -97,7 +97,7 @@ jobs:
     name: Publicar ${{ matrix.nombre }}
     needs: verificar
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     permissions:
       contents: read
       packages: write

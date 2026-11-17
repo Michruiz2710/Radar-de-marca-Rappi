@@ -48,12 +48,17 @@ Pruebas: `python -m pytest tests/nlp` (no necesitan torch).
 - El esquema sale de `PG_SCHEMA_CLEAN` (clean, clean_staging, clean_prod), como en P2.3.
 - La imagen `nlp` no está en el CI ni en el CD: construirla exige bajar torch y el modelo (más de 10 minutos). Decidir con Gabriel si entra en el CI.
 
-## Pendiente: conectarlo al flujo de Prefect (P2.1)
+## En el flujo de Prefect (P2.1 y P3.2)
 
-`flows/pipeline.py` espera una función `src.transform.nlp.sentimiento:analizar`. **Todavía no existe a propósito**: la etapa queda "pendiente" y el pipeline sigue. Si se agregara sin más, la imagen del orquestador (`flows/Dockerfile`) no tiene torch ni pysentimiento, la etapa fallaría tras la limpieza y detendría el flujo. Hay que decidir con Sara cómo correrlo: meter las dependencias en la imagen del orquestador (muy pesada), correr la imagen `nlp` como servicio aparte, o usar un worker propio.
+La etapa `sentimiento` de `flows/pipeline.py` llama a `sentimiento.analizar(rutas)`, que corre `correr()` y falla si queda algún registro elegible sin resultado. Corre **dentro del orquestador**: `flows/Dockerfile` instala torch (solo CPU), `requirements-nlp.txt` y el modelo fijado en `NLP_MODEL_REVISION`, igual que la imagen `nlp`. Si no se pasa esa variable al construir, usa la revisión de `.env.example`.
+
+- La imagen del orquestador es pesada: la primera construcción tarda más de 10 minutos y el CI y el CD tienen un límite de tiempo más largo por eso. El contenedor tiene `mem_limit: 4g`.
+- `analizar` ignora el diccionario de rutas: procesa todo lo pendiente en `clean.menciones`, también lo de corridas anteriores que no terminaron.
+- Si la etapa falla, la tarea reintenta 3 veces (es idempotente) y luego el pipeline falla y cuenta para la alerta A1.
+- `make nlp` sigue sirviendo para correr el análisis a mano o evaluar el modelo.
 
 ## Estado
 
 Hecho: clasificador de temas, sentimiento por lotes, tabla `clean.sentimiento`, pipeline idempotente, evaluación sobre texto limpio, imagen Docker y pruebas. Resultados de la evaluación en [`docs/evaluacion_nlp.md`](../../../docs/evaluacion_nlp.md).
 
-**Pendiente:** probar contra Postgres real con datos de P2.3, regenerar el informe de evaluación con texto limpio, decidir la integración con el orquestador y mejorar el diccionario de temas (acierto actual: ver el informe).
+**Pendiente:** probar contra Postgres real con datos de P2.3, regenerar el informe de evaluación con texto limpio, probar la etapa dentro de Prefect con Docker y mejorar el diccionario de temas (acierto actual: ver el informe).

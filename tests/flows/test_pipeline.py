@@ -5,6 +5,9 @@ import pytest
 
 from flows import fuentes, pipeline
 
+# Antes de que conftest las reemplace por módulos inexistentes
+ETAPAS_REALES = pipeline.ETAPAS
+
 
 @pytest.fixture
 def sin_esperas(monkeypatch):
@@ -100,6 +103,12 @@ def test_resolver_distingue_pendiente_de_error():
     assert pipeline.resolver("paquete_inexistente.modulo:funcion") is None
     assert pipeline.resolver("flows.pipeline:no_existe") is None
     assert pipeline.resolver("flows.pipeline:resolver") is pipeline.resolver
+
+
+def test_todas_las_etapas_reales_existen():
+    # Si alguna se renombra, la etapa quedaría "pendiente" sin avisar (pasó con sentimiento)
+    for etapa in ETAPAS_REALES:
+        assert pipeline.resolver(etapa.destino) is not None, etapa.destino
 
 
 def test_cuenta_los_registros_extraidos(prefect_local, scrapers_falsos, monkeypatch):

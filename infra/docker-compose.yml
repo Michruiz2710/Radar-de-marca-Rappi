@@ -237,8 +237,14 @@ services:
     build:
       context: ..
       dockerfile: flows/Dockerfile
+      args:
+        # Vacía = el Dockerfile usa la revisión por defecto (la misma de .env.example)
+        NLP_MODEL_REVISION: ${NLP_MODEL_REVISION:-}
     image: ghcr.io/michruiz2710/radar-de-marca-rappi/orquestador:${IMAGE_TAG:-latest}
+    # La etapa de sentimiento corre aquí dentro: mismos recursos que el servicio `nlp`
+    mem_limit: 4g
     environment:
+      NLP_BATCH_SIZE: ${NLP_BATCH_SIZE:-32}
       APP_ENV: ${APP_ENV:-dev}
       PG_SCHEMA_CLEAN: ${PG_SCHEMA_CLEAN:-clean}
       PG_SCHEMA_ANALYTICS: ${PG_SCHEMA_ANALYTICS:-analytics}

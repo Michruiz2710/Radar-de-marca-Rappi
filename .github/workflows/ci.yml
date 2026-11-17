@@ -42,7 +42,8 @@ jobs:
   imagenes:
     name: Build ${{ matrix.nombre }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # El orquestador incluye torch y el modelo de sentimiento: sin caché tarda más de 10 minutos
+    timeout-minutes: 40
     strategy:
       # Si falla una imagen, las demás siguen para ver todos los errores juntos
       fail-fast: false
