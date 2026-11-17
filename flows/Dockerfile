@@ -7,10 +7,14 @@ WORKDIR /app
 
 COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
+# dbt para la etapa de modelos (P3.4)
+COPY dbt/requirements-dbt.txt ./requirements-dbt.txt
+RUN pip install --no-cache-dir -r requirements-dbt.txt
 
 COPY src src
 COPY flows flows
 COPY quality quality
+COPY dbt dbt
 
 # Corre como root porque comparte el volumen google_play_estado con scraper-google-play,
 # que tambien corre como root. Si ambos pasan a un usuario sin privilegios, debe ser el mismo.

@@ -43,6 +43,7 @@ Las etapas se conectan por nombre. Mientras el módulo no exista, la etapa queda
 | Limpieza | `src.transform.clean.limpieza:limpiar(rutas)` | P2.3 |
 | Validación limpia | `quality.checkpoints:validar_limpia(rutas)` | P2.2 |
 | Sentimiento | `src.transform.nlp.sentimiento:analizar(rutas)` | P2.4 |
+| Modelos analíticos | `flows.modelos:construir(rutas)`: corre `dbt build` si hubo datos nuevos | P3.4 |
 
 Los nombres son una propuesta. Si un paquete usa otro, basta con cambiar `ETAPAS` en `pipeline.py`.
 

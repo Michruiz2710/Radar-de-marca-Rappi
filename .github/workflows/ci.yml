@@ -96,3 +96,51 @@ jobs:
           else
             echo "::notice::Todavía no existe 'make validar' (P2.2). Se omite este paso."
           fi
+
+  dbt:
+    name: Modelos dbt
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Postgres de prueba con 9 menciones inventadas (dbt/datos_ci.py), cargadas con el mismo código
+    # de P2.3 y P2.4. dbt build crea analytics y corre las pruebas, y al final se revisan resultados conocidos.
+    services:
+      postgres:
+        image: postgres:16.6-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: radar
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d radar"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ci
+      POSTGRES_PASSWORD: ci
+      POSTGRES_DB: radar
+      PG_SCHEMA_CLEAN: clean
+      PG_SCHEMA_ANALYTICS: analytics
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r dbt/requirements-dbt.txt
+
+      - name: Cargar datos de prueba en clean
+        run: PYTHONPATH=. python dbt/datos_ci.py
+
+      - name: dbt build
+        working-directory: dbt
+        run: dbt build --profiles-dir .
+
+      - name: Revisar resultados conocidos
+        run: PYTHONPATH=. python dbt/datos_ci.py --verificar

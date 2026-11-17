@@ -1,0 +1,25 @@
+# Modelos analíticos (P3.4). Leen la capa clean y escriben en la capa analytics del entorno.
+name: radar_rappi
+version: "1.0.0"
+profile: radar_rappi
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+clean-targets: ["target", "dbt_packages", "logs"]
+
+vars:
+  # Zona horaria para agrupar por día: el negocio se mira en hora de Colombia, los datos vienen en UTC
+  zona_horaria: "America/Bogota"
+  # Historia que entra a los modelos finales, en días. 0 = toda la historia (por defecto).
+  # Ejemplo para mirar solo el último año: dbt build --vars '{dias_historia: 365}'
+  dias_historia: 0
+  # Versiones de la app con menos reseñas que esto se marcan como muestra insuficiente
+  min_resenas_version: 10
+
+models:
+  radar_rappi:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table
