@@ -26,7 +26,14 @@ log = logging.getLogger("quality.checkpoints")
 
 
 class ValidacionCriticaError(Exception):
-    """Falló al menos una regla crítica por lo que el dato rompe el contrato."""
+    """Falló al menos una regla crítica por lo que el dato rompe el contrato.
+
+    ``resumenes`` lleva el detalle para que el orquestador cuente las reglas fallidas (P3.1).
+    """
+
+    def __init__(self, mensaje: str, resumenes: list[dict] | None = None):
+        super().__init__(mensaje)
+        self.resumenes = resumenes or []
 
 
 def directorio_data_docs() -> str:
@@ -106,7 +113,7 @@ def validar_cruda(rutas: dict[str, str | None]) -> list[dict]:
 
     con_criticas = [r["ruta"] for r in resumenes if r["criticas"]]
     if con_criticas:
-        raise ValidacionCriticaError(f"Validación raw fallida en: {con_criticas}")
+        raise ValidacionCriticaError(f"Validación raw fallida en: {con_criticas}", resumenes)
     return resumenes
 
 
@@ -129,5 +136,5 @@ def validar_limpia(rutas: dict[str, str | None], motor: Engine | None = None, es
     for falla in resumen["criticas"]:
         log.error("Regla crítica fallida en clean: %s", falla)
     if resumen["criticas"]:
-        raise ValidacionCriticaError(f"Validación clean fallida: {resumen['criticas']}")
+        raise ValidacionCriticaError(f"Validación clean fallida: {resumen['criticas']}", [resumen])
     return resumen

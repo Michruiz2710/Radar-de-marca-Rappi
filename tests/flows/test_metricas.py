@@ -1,7 +1,8 @@
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import patch
 
 from flows import metricas
+from src.observability import metricas as obs
 
 
 def test_cuenta_fallas_seguidas_y_reinicia_con_exito():
@@ -11,31 +12,20 @@ def test_cuenta_fallas_seguidas_y_reinicia_con_exito():
     assert metricas.registrar_resultado("pipeline:news", exito=True) == 0
 
 
-def test_sin_pushgateway_no_falla():
-    assert metricas.publicar("pipeline", {"fallas_consecutivas": 1}) is False
+def test_los_ganchos_registran_la_duracion():
+    flujo = SimpleNamespace(name="pipeline")
+    corrida = SimpleNamespace(parameters={"fuentes": ["news"]}, start_time=datetime.now(UTC) - timedelta(seconds=20))
+    metricas.al_terminar_bien(flujo, corrida, None)
+    datos = obs._leer()["flujos"]["pipeline:news"]
+    assert datos["conteo"] == 1 and 19 <= datos["suma"] <= 60
 
 
-def test_pushgateway_caido_no_falla(monkeypatch):
-    monkeypatch.setenv("PUSHGATEWAY_URL", "http://localhost:9")
-    assert metricas.publicar("pipeline", {"fallas_consecutivas": 1}) is False
+def test_un_error_en_las_metricas_no_rompe_el_flujo(monkeypatch):
+    def rota(*a, **k):
+        raise RuntimeError("disco lleno")
 
-
-def test_publica_en_el_grupo_del_flujo(monkeypatch):
-    monkeypatch.setenv("PUSHGATEWAY_URL", "http://pushgateway:9091")
-    with patch("prometheus_client.pushadd_to_gateway") as enviar:
-        metricas.registrar_resultado("pipeline:news", exito=False)
-    _, kwargs = enviar.call_args
-    assert enviar.call_args.args[0] == "http://pushgateway:9091"
-    assert kwargs["job"] == "radar_flujos" and kwargs["grouping_key"] == {"flujo": "pipeline:news"}
-    nombres = {m.name for m in kwargs["registry"].collect()}
-    assert nombres == {"ultima_corrida_fallida_timestamp", "fallas_consecutivas"}
-
-
-def test_estado_danado_empieza_en_cero(tmp_path):
-    archivo = metricas._archivo_estado()
-    archivo.parent.mkdir(parents=True, exist_ok=True)
-    archivo.write_text("{roto", "utf-8")
-    assert metricas.registrar_resultado("pipeline", exito=False) == 1
+    monkeypatch.setattr(obs, "registrar_corrida", rota)
+    assert metricas.registrar_resultado("pipeline", exito=True) == -1
 
 
 def test_nombre_del_flujo_por_fuente():

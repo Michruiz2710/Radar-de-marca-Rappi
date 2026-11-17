@@ -1,0 +1,21 @@
+# Configuración de Prometheus (P3.1).
+# El pipeline no expone un puerto propio: el orquestador publica sus métricas en el
+# Pushgateway al final de cada corrida, y Prometheus las lee de ahí.
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+# Las reglas de alerta las agrega P3.2 (Jonathan) en esta carpeta.
+rule_files:
+  - /etc/prometheus/reglas/*.yml
+
+scrape_configs:
+  - job_name: pushgateway
+    # Conserva las etiquetas que mandó el pipeline (job, fuente, flujo...)
+    honor_labels: true
+    static_configs:
+      - targets: ["pushgateway:9091"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
