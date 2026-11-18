@@ -56,6 +56,14 @@ La etapa `sentimiento` de `flows/pipeline.py` llama a `sentimiento.analizar(ruta
 - `analizar` ignora el diccionario de rutas: procesa todo lo pendiente en `clean.menciones`, también lo de corridas anteriores que no terminaron.
 - Si la etapa falla, la tarea reintenta 3 veces (es idempotente) y luego el pipeline falla y cuenta para la alerta A1.
 - `make nlp` sigue sirviendo para correr el análisis a mano o evaluar el modelo.
+- **Primera corrida con mucho atraso.** Dentro de Prefect el análisis va a unos 2 registros por segundo (a unos 5 fuera de él) y cada tarea tiene un límite de 30 minutos. Con miles de menciones pendientes (por ejemplo, tras la primera extracción de Google Play o YouTube), conviene procesar el atraso antes, directamente en el contenedor, y después dejar que el pipeline solo analice lo nuevo:
+
+  ```bash
+  docker compose -f infra/docker-compose.yml --env-file .env --env-file config/dev.env exec orquestador python -m src.transform.nlp.pipeline
+  ```
+
+  En pruebas, 9.362 registros tardaron unos 40 minutos así; una corrida normal con registros nuevos tarda segundos.
+- Dentro de Prefect, esta etapa escribe en los logs cientos de miles de líneas de código de bytes de Python (probablemente por `log_prints=True`). No afecta el resultado, pero llena la base de logs y la frena; el origen no está investigado.
 
 ## Estado
 
