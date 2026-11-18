@@ -19,6 +19,7 @@ P0 significa que el sistema dejó de funcionar y hay que actuar ya; P1, que func
 | A5 | P1 | Sentimiento negativo de 24 h supera el 60 % | [A5_sentimiento_negativo.md](A5_sentimiento_negativo.md) |
 | A6 | P1 | Menciones del día superan 2 veces el promedio de 7 días | [A6_pico_de_menciones.md](A6_pico_de_menciones.md) |
 | A7 | P1 | Cuota de YouTube usada supera el 80 % | [A7_cuota_youtube.md](A7_cuota_youtube.md) |
+| A8 | P0 | Prometheus no ve el Pushgateway (extra: sin él, A1 a A7 quedan ciegas) | [A8_pushgateway_caido.md](A8_pushgateway_caido.md) |
 
 ## Antes de empezar
 
@@ -29,4 +30,4 @@ P0 significa que el sistema dejó de funcionar y hay que actuar ya; P1, que func
 
 ## Estado
 
-Hecho: los siete runbooks de P3.2, con comprobación de que cada regla apunta a uno que existe (`tests/observability/test_runbooks.py`).
+Hecho: los siete runbooks de la ruta de trabajo (A1 a A7) y el de A8, una alerta extra, con comprobación de que cada regla apunta a uno que existe (`tests/observability/test_runbooks.py`).

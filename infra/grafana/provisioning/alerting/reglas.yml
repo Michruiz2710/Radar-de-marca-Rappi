@@ -1,4 +1,5 @@
-# Reglas de alerta A1-A7 (P3.2), generadas desde la tabla de la ruta de trabajo.
+# Reglas de alerta A1-A7 (P3.2), generadas desde la tabla de la ruta de trabajo, más A8 (extra, no está en la ruta):
+# avisa si el Pushgateway se cae, porque sin él las demás alertas quedan ciegas.
 # P0: el sistema dejó de funcionar. P1: funciona, pero hay algo que revisar.
 # Cada regla dispara cuando su expresión devuelve un valor mayor que 0.
 # Cada una apunta a su runbook en docs/runbooks/ (anotación `runbook`).
@@ -198,6 +199,53 @@ groups:
     labels:
       severidad: P0
       alerta: A4
+  - uid: a8-pushgateway
+    title: A8 · Prometheus no ve el Pushgateway
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: up{job="pushgateway"} == bool 0
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 1m
+    isPaused: false
+    annotations:
+      summary: Prometheus no puede leer el Pushgateway; las alertas A1 a A7 están ciegas
+      description: Sin el Pushgateway no llegan métricas nuevas y ninguna otra alerta puede dispararse. Levantarlo y revisar por qué se cayó.
+      runbook: docs/runbooks/A8_pushgateway_caido.md
+    labels:
+      severidad: P0
+      alerta: A8
 - orgId: 1
   name: P1 · revisar
   folder: Radar Rappi

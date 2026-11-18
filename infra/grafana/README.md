@@ -12,7 +12,7 @@ Dashboard técnico y reglas de alerta P0/P1 guardados como código (provisioning
 | --- | --- |
 | `provisioning/datasources/prometheus.yml` | Conecta Grafana con el Prometheus del compose (uid `prometheus`) |
 | `provisioning/dashboards/dashboards.yml` | Carga los dashboards de la carpeta `dashboards/` al arrancar |
-| `provisioning/alerting/reglas.yml` | Las 7 reglas de alerta A1–A7 |
+| `provisioning/alerting/reglas.yml` | Las reglas de alerta: A1–A7 de la ruta de trabajo y A8 (extra) |
 | `provisioning/alerting/contactpoints.yml` | Punto de contacto: correo del grupo |
 | `provisioning/alerting/policies.yml` | Cuánto tarda cada prioridad en avisar y cada cuánto se repite |
 | `dashboards/pipeline_tecnico.json` | Dashboard «Pipeline técnico» |
@@ -52,6 +52,7 @@ Grafana evalúa las reglas cada minuto sobre las métricas de Prometheus y avisa
 | A5 | P1 | `sentimiento_negativo_24h_ratio > 0,6` | 10 min |
 | A6 | P1 | Menciones de hoy > 2 × el promedio diario de 7 días (solo con 7 días de historia) | 10 min |
 | A7 | P1 | `cuota_youtube_usada > 8000` | 0 s |
+| A8 | P0 | Prometheus no puede leer el Pushgateway (`up{job="pushgateway"} == 0`). **Extra, no está en la ruta de trabajo**: sin el Pushgateway, A1 a A7 devuelven «sin datos» y quedan ciegas | 1 min |
 
 Las P0 se envían de inmediato y se repiten cada hora mientras sigan activas; las P1 esperan 30 s y se repiten cada 12 h. Cuando una alerta se resuelve, Grafana también avisa. La alerta A3 no vigila el flujo manual `pipeline`, porque no tiene horario.
 

@@ -14,8 +14,9 @@ def _reglas() -> list[dict]:
     return [regla for grupo in documento["groups"] for regla in grupo["rules"]]
 
 
-def test_hay_siete_reglas_de_a1_a_a7():
-    assert sorted(r["labels"]["alerta"] for r in _reglas()) == [f"A{i}" for i in range(1, 8)]
+def test_hay_ocho_reglas_de_a1_a_a8():
+    # A1 a A7 son las de la ruta de trabajo; A8 (Pushgateway caído) es un extra
+    assert sorted(r["labels"]["alerta"] for r in _reglas()) == [f"A{i}" for i in range(1, 9)]
 
 
 def test_cada_regla_apunta_a_un_runbook_que_existe():
@@ -40,5 +41,5 @@ def test_los_runbooks_enlazados_entre_si_existen():
 
 
 def test_las_reglas_son_p0_o_p1_con_su_correspondiente_prioridad():
-    esperadas = {"A1": "P0", "A2": "P0", "A3": "P0", "A4": "P0", "A5": "P1", "A6": "P1", "A7": "P1"}
+    esperadas = {"A1": "P0", "A2": "P0", "A3": "P0", "A4": "P0", "A5": "P1", "A6": "P1", "A7": "P1", "A8": "P0"}
     assert {r["labels"]["alerta"]: r["labels"]["severidad"] for r in _reglas()} == esperadas
