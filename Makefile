@@ -5,7 +5,7 @@
 ENTORNO ?= dev
 COMPOSE = docker compose -f infra/docker-compose.yml --env-file .env --env-file config/$(ENTORNO).env
 
-.PHONY: help up down logs ps test lint check-env scrapers desplegar nlp evaluar-nlp validar
+.PHONY: help up down logs ps test lint check-env scrapers desplegar nlp evaluar-nlp validar dbt dbt-docs
 
 help:
 	@echo "make up     Levanta todos los servicios"
@@ -20,6 +20,8 @@ help:
 	@echo "make nlp    Calcula sentimiento y tema de los registros pendientes (requiere make up)"
 	@echo "make evaluar-nlp  Evalúa sentimiento y temas contra las 200 reseñas etiquetadas"
 	@echo "make validar   Corre las validaciones de calidad"
+	@echo "make dbt    Construye y prueba los modelos analíticos (requiere Postgres con la capa clean)"
+	@echo "make dbt-docs  Documentación y linaje de dbt en http://localhost:8080"
   
 # Falla con un mensaje claro si todavía no existe el archivo .env
 check-env:
@@ -47,6 +49,12 @@ scrapers: check-env
 
 nlp: check-env
 	$(COMPOSE) --profile nlp run --rm --build nlp
+
+dbt: check-env
+	$(COMPOSE) --profile dbt run --rm --build dbt
+
+dbt-docs: check-env
+	$(COMPOSE) --profile dbt run --rm --build --service-ports dbt sh -c "dbt docs generate && dbt docs serve --host 0.0.0.0 --port 8080 --no-browser"
 
 evaluar-nlp: check-env
 	$(COMPOSE) --profile nlp run --rm --build nlp python -m src.transform.nlp.evaluacion

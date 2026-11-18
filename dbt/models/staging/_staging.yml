@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: stg_menciones
+    description: Menciones de clean.menciones con día y semana en hora de Colombia, horas hasta la respuesta de Rappi y si el texto nombra la marca.
+    columns:
+      - name: id_registro
+        data_tests: [unique, not_null]
+      - name: fecha
+        description: Día de publicación en hora de Colombia.
+        data_tests: [not_null]
+      - name: calificacion
+        description: Estrellas de 1 a 5. Solo Google Play.
+      - name: horas_hasta_respuesta
+        description: Horas entre la reseña y la respuesta de Rappi. Vacío si no hubo respuesta.
+  - name: stg_sentimiento
+    description: Sentimiento y tema por registro, con puntaje 1 (positivo), 0 (neutro) o -1 (negativo).
+    columns:
+      - name: id_registro
+        data_tests: [unique, not_null]
+      - name: puntaje_sentimiento
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [-1, 0, 1]
+                quote: false

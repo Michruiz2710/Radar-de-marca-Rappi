@@ -42,9 +42,8 @@ Las etapas se conectan por nombre. Mientras el módulo no exista, la etapa queda
 | Validación cruda | `quality.checkpoints:validar_cruda(rutas)` | P2.2 |
 | Limpieza | `src.transform.clean.limpieza:limpiar(rutas)` | P2.3 |
 | Validación limpia | `quality.checkpoints:validar_limpia(rutas)` | P2.2 |
-| Sentimiento | `src.transform.nlp.sentimiento:analizar(rutas)` | P2.4 (conectada en P3.2) |
-
-La etapa de sentimiento corre dentro de la imagen del orquestador, que incluye torch (CPU) y el modelo; por eso esa imagen es pesada (ver `src/transform/nlp/README.md`).
+| Sentimiento | `src.transform.nlp.sentimiento:analizar(rutas)` | P2.4 |
+| Modelos analíticos | `flows.modelos:construir(rutas)`: corre `dbt build` si hubo datos nuevos | P3.4 |
 
 Los nombres son una propuesta. Si un paquete usa otro, basta con cambiar `ETAPAS` en `pipeline.py`.
 

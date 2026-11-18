@@ -37,6 +37,7 @@ ETAPAS = (
     Etapa("limpieza", "src.transform.clean.limpieza:limpiar", "P2.3"),
     Etapa("validacion_limpia", "quality.checkpoints:validar_limpia", "P2.2"),
     Etapa("sentimiento", "src.transform.nlp.sentimiento:analizar", "P2.4"),
+    Etapa("modelos", "flows.modelos:construir", "P3.4"),
 )
 
 
