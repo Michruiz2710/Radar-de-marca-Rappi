@@ -8,7 +8,7 @@ En las últimas 6 horas (dos corridas de Google Play como mínimo) no se guardó
 
 **Ojo:** casi nunca habrá errores HTTP que lo confirmen. La librería convierte un 429 en una página vacía en vez de lanzar un error, así que `errores_http_total{fuente="google_play"}` suele quedar en 0 (ver `src/observability/README.md`). Esta alerta es la señal confiable.
 
-También salta en un entorno recién levantado, antes de la primera extracción de Google Play. Si acabas de hacer `make up`, espera a la primera corrida.
+La regla solo se evalúa cuando la serie lleva al menos 6 horas en Prometheus, para no dar una falsa alarma justo después de `make up`. Eso significa que, en un entorno recién levantado, A2 no puede disparar durante las primeras 6 horas.
 
 ## Qué hacer
 

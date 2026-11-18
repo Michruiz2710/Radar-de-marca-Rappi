@@ -67,7 +67,7 @@ groups:
       datasourceUid: prometheus
       model:
         refId: A
-        expr: increase(registros_extraidos_total{fuente="google_play"}[6h]) == bool 0
+        expr: '(increase(registros_extraidos_total{fuente="google_play"}[6h]) == bool 0) and on() (count(registros_extraidos_total{fuente="google_play"} offset 6h) > 0)'
         instant: true
         range: false
         intervalMs: 1000

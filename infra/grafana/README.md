@@ -46,7 +46,7 @@ Grafana evalúa las reglas cada minuto sobre las métricas de Prometheus y avisa
 | ID | Prioridad | Condición | Espera antes de avisar |
 | --- | --- | --- | --- |
 | A1 | P0 | `fallas_consecutivas >= 2` en algún flujo | 0 s |
-| A2 | P0 | Google Play sin registros nuevos en 6 h | 0 s |
+| A2 | P0 | Google Play sin registros nuevos en 6 h (solo se evalúa con 6 h de historia) | 0 s |
 | A3 | P0 | Sin corrida exitosa hace más del doble del intervalo: news 4 h, Google Play 6 h, YouTube 12 h | 0 s |
 | A4 | P0 | Una validación crítica falló en la última hora | 0 s |
 | A5 | P1 | `sentimiento_negativo_24h_ratio > 0,6` | 10 min |
