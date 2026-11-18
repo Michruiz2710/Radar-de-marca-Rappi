@@ -1,3 +1,5 @@
+import asyncio
+import io
 import sys
 import types
 
@@ -109,6 +111,41 @@ def test_todas_las_etapas_reales_existen():
     # Si alguna se renombra, la etapa quedaría "pendiente" sin avisar (pasó con sentimiento)
     for etapa in ETAPAS_REALES:
         assert pipeline.resolver(etapa.destino) is not None, etapa.destino
+
+
+def _todos_los_logs() -> list[str]:
+    from prefect.client.orchestration import get_client
+
+    async def leer():
+        mensajes, desplazamiento = [], 0
+        async with get_client() as cliente:
+            while lote := await cliente.read_logs(limit=200, offset=desplazamiento):
+                mensajes += [registro.message for registro in lote]
+                desplazamiento += len(lote)
+        return mensajes
+
+    return asyncio.run(leer())
+
+
+def test_los_print_de_una_etapa_no_van_a_los_logs_de_prefect(prefect_local, scrapers_falsos, monkeypatch):
+    # dill.detect.nestedglobals captura stdout y llama dis.dis: con log_prints=True, Prefect 3.8 manda ese
+    # volcado a los logs en vez de al buffer de dill (miles de líneas por lote en la etapa de sentimiento)
+    modulo = types.ModuleType("etapa_con_print")
+
+    def etapa(rutas):
+        original, buffer = sys.stdout, io.StringIO()
+        sys.stdout = buffer
+        try:
+            print("volcado-de-codigo-de-bytes")
+        finally:
+            sys.stdout = original
+        assert "volcado-de-codigo-de-bytes" in buffer.getvalue()  # el print llega al buffer, no a Prefect
+
+    modulo.analizar = etapa
+    monkeypatch.setitem(sys.modules, "etapa_con_print", modulo)
+    monkeypatch.setattr(pipeline, "ETAPAS", (pipeline.Etapa("sentimiento", "etapa_con_print:analizar", "P2.4"),))
+    assert pipeline.pipeline(fuentes=["news"])["etapas"] == {"sentimiento": "ok"}
+    assert not [m for m in _todos_los_logs() if "volcado-de-codigo-de-bytes" in m]
 
 
 def test_cuenta_los_registros_extraidos(prefect_local, scrapers_falsos, monkeypatch):
