@@ -58,3 +58,16 @@
 [class*="st-key-kpi_"][class*="_atencion"] { border-top-color: #8F5F00; }
 [class*="st-key-kpi_"][class*="_alerta"] { border-top-color: #B42318; }
 [class*="st-key-kpi_"][class*="_poca"] { border-top-color: #9FA3AB; }
+
+.tabla-contenedor { max-height: 380px; overflow-y: auto; border: 1px solid #E3E4E7; border-radius: 8px; }
+.tabla-radar { width: 100%; border-collapse: collapse; font-size: 14px; color: #1F2023; }
+.tabla-radar th { background: #FFE3D8; font-weight: 700; text-align: center !important; padding: 10px 12px; position: sticky; top: 0; }
+.tabla-radar td { padding: 8px 12px; border-top: 1px solid #E3E4E7; vertical-align: top; }
+.tabla-radar td:nth-child(1), .tabla-radar td:nth-child(2) { text-align: center; white-space: nowrap; }
+.tabla-radar tbody tr:hover td { background: #F5F5F6; }
+
+.division-marca { border: none; border-top: 3px solid #FF4940; margin: 8px 0 16px; opacity: 1; }
+
+.st-key-ejemplos [data-testid="stBaseButton-pills"] { border: 1px solid #FF4940; color: #C8320F; font-weight: 700; }
+.st-key-ejemplos [data-testid="stBaseButton-pills"]:hover { background: #FFE3D8; }
+.st-key-ejemplos [data-testid="stBaseButton-pillsActive"] { background: #FF4940; border: 1px solid #FF4940; color: #FFFFFF; font-weight: 700; }

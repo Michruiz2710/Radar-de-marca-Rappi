@@ -26,7 +26,7 @@ zona_colombia = ZoneInfo("America/Bogota")
 nombres_fuente = {"google_play": "Google Play", "youtube": "YouTube", "news": "Noticias"}
 filtro_sql = "fecha between :desde and :hasta and fuente = any(:fuentes)"
 color_marca = "#FF4940"
-colores_fuente = {"google_play": "#FBBC05", "youtube": "#FF0000", "news": "#174EA6"}
+colores_fuente = {"google_play": "#01875F", "youtube": "#FF0000", "news": "#174EA6"}
 color_bien = "#1E7B34"
 color_atencion = "#8F5F00"
 color_alerta = "#B42318"
@@ -125,14 +125,28 @@ def noticias_por_dia(parametros: dict) -> pd.DataFrame:
     """
     return consultar(sql, parametros)
 
+def noticias_detalle(parametros: dict) -> pd.DataFrame:
+    """Una fila por noticia sobre Rappi en el período definido"""
+    sql = f"""
+        select fecha, medio, texto_limpio as titular
+        from {esquema}.fct_menciones
+        where fuente = 'news' and fecha between :desde and :hasta
+        order by fecha desc, medio
+    """
+    datos = consultar(sql, parametros)
+    datos["titular"] = [limpiar_titular(t, m) for t, m in zip(datos["titular"], datos["medio"])]
+    return datos
+
 def grafico_sentimiento(datos: pd.DataFrame, noticias: pd.DataFrame) -> alt.LayerChart:
     """Líneas por fuente, umbrales de 30 % y 50 % y una regla por día con noticias."""
-    dominio = [nombres_fuente[f] for f in colores_fuente]
+    presentes = [f for f in colores_fuente if f in set(datos["fuente"])]
     lineas = alt.Chart(datos).mark_line(point=True, strokeWidth=3.5).encode(
         x=alt.X("fecha:T", title=None, axis=alt.Axis(format="%d %b")),
         y=alt.Y("pct_negativo:Q", title="% negativo", axis=alt.Axis(format="%"), scale=alt.Scale(domain=[0, 1])),
-        color=alt.Color("fuente_nombre:N", title="Fuente", scale=alt.Scale(domain=dominio, range=list(colores_fuente.values()))),
-        strokeDash=alt.StrokeDash("fuente_nombre:N", scale=alt.Scale(domain=dominio, range=[[1, 0], [6, 4], [1, 0]]), legend=None),
+        color=alt.Color("fuente_nombre:N", title="Fuente", scale=alt.Scale(
+            domain=[nombres_fuente[f] for f in presentes],
+            range=[colores_fuente[f] for f in presentes],
+        )),
         tooltip=[
             alt.Tooltip("fecha:T", title="Fecha", format="%d %b %Y"),
             alt.Tooltip("fuente_nombre:N", title="Fuente"),
@@ -140,19 +154,24 @@ def grafico_sentimiento(datos: pd.DataFrame, noticias: pd.DataFrame) -> alt.Laye
             alt.Tooltip("analizadas:Q", title="Menciones"),
         ],
     )
-    umbrales = alt.Chart(pd.DataFrame({"umbral": [0.3, 0.5]})).mark_rule(
-        strokeDash=[4, 4], color="#8F5F00"
-    ).encode(y="umbral:Q")
+    umbrales = pd.DataFrame({
+        "umbral": [0.3, 0.5],
+        "etiqueta": ["Atención: más de 30 % negativas", "Alerta: más de 50 % negativas"],
+        "color": [color_atencion, color_alerta],
+    })
+    lineas_umbral = alt.Chart(umbrales).mark_rule(strokeDash=[4, 4], strokeWidth=2).encode(
+        y="umbral:Q",
+        color=alt.Color("color:N", scale=None),
+        tooltip=[alt.Tooltip("etiqueta:N", title="Umbral")],
+    )
     eventos = alt.Chart(noticias).mark_rule(strokeDash=[2, 3], color="#3A3D44").encode(
         x="fecha:T",
         tooltip=[
-            alt.Tooltip("fecha:T", title="Fecha", format="%d %b %Y"),
-            alt.Tooltip("noticias:Q", title="Noticias"),
-            alt.Tooltip("titular:N", title="Titular"),
-            alt.Tooltip("medio:N", title="Medio"),
+            alt.Tooltip("fecha:T", title="Día con noticias", format="%d %b %Y"),
+            alt.Tooltip("noticias:Q", title="Noticias (ver tabla abajo)"),
         ],
     )
-    return lineas + umbrales + eventos
+    return lineas + lineas_umbral + eventos
 
 def calificacion_por_version(parametros: dict) -> pd.DataFrame:
     """Calificación promedio de Google Play en las últimas 5 versiones (mayor.menor)."""
@@ -251,6 +270,7 @@ def quejas_por_tema(parametros: dict) -> pd.DataFrame:
     datos = consultar(sql, parametros)
     datos["pct"] = datos["negativas"] / datos["negativas"].sum()
     datos["principal"] = ["sí"] + ["no"] * (len(datos) - 1) if len(datos) else []
+    datos["tema_nombre"] = datos["tema"].map(nombre_tema)
     return datos
 
 
@@ -261,8 +281,8 @@ def anonimizar(texto: str) -> str:
     return " ".join(texto.split())
 
 
-def ejemplos_quejas(parametros: dict, por_tema: int = 3) -> pd.DataFrame:
-    """Hasta 3 menciones negativas por tema, las de más likes primero."""
+def ejemplos_quejas(parametros: dict, por_tema: int = 5) -> pd.DataFrame:
+    """Hasta 5 menciones negativas por tema, las de más likes primero."""
     sql = f"""
         select tema, fuente, fecha, calificacion, texto
         from (
@@ -288,13 +308,13 @@ def ejemplos_quejas(parametros: dict, por_tema: int = 3) -> pd.DataFrame:
 def grafico_quejas(datos: pd.DataFrame) -> alt.LayerChart:
     """Barras horizontales de mayor a menor; la queja principal más intensa."""
     base = alt.Chart(datos).encode(
-        y=alt.Y("tema:N", sort="-x", title=None),
+        y=alt.Y("tema_nombre:N", sort="-x", title=None),
         x=alt.X("pct:Q", title="% de las quejas", axis=alt.Axis(format="%")),
     )
     barras = base.mark_bar(color=color_marca).encode(
         opacity=alt.Opacity("principal:N", scale=alt.Scale(domain=["sí", "no"], range=[1, 0.75]), legend=None),
         tooltip=[
-            alt.Tooltip("tema:N", title="Tema"),
+            alt.Tooltip("tema_nombre:N", title="Tema"),
             alt.Tooltip("negativas:Q", title="Menciones negativas"),
             alt.Tooltip("pct:Q", title="% de las quejas", format=".0%"),
         ],
@@ -433,7 +453,32 @@ def mostrar_resumen(parametros: dict) -> None:
     with col_tema, st.container(border=True, key="kpi_tema", height=alto_tarjeta):
         st.metric("Tema más quejado", "—" if tema is None else nombre_tema(tema["tema"]))
         pie_tarjeta("Sin quejas registradas" if tema is None else f"{tema['pct']:.0%} de las quejas")
-        
+
+def tabla_html(datos: pd.DataFrame, columnas: dict) -> None:
+    """Muestra una tabla con el estilo del tablero; columnas = {nombre en la BD: título visible}."""
+    tabla = datos[list(columnas)].rename(columns=columnas)
+    contenido = tabla.to_html(index=False, classes="tabla-radar", border=0, escape=True)
+    st.html(f'<div class="tabla-contenedor">{contenido}</div>')
+
+def limpiar_titular(titular: str, medio: str | None) -> str:
+    """Quita el nombre del medio cuando viene repetido al final del titular."""
+    if not medio:
+        return titular
+    for separador in (" | ", " - ", " — "):
+        sufijo = f"{separador}{medio}"
+        if titular.lower().endswith(sufijo.lower()):
+            return titular[: -len(sufijo)].strip()
+    return titular
+
+def tabla_ejemplos(ejemplos: pd.DataFrame) -> None:
+    """Tabla de ejemplos de un tema: fecha, fuente, estrellas y comentario."""
+    tabla = ejemplos.assign(
+        fecha=pd.to_datetime(ejemplos["fecha"]).dt.strftime("%d/%m/%Y"),
+        fuente=ejemplos["fuente"].map(nombres_fuente),
+        calificacion=["No aplica" if pd.isna(c) else f"★ {c:.0f}" for c in ejemplos["calificacion"]],
+    )
+    tabla_html(tabla, {"fecha": "Fecha", "fuente": "Fuente", "calificacion": "Estrellas", "texto": "Comentario"})
+
 st.set_page_config(page_title="Rappi Pulse", layout="wide")
 st.html(Path(__file__).parent / "estilos.css")
 parametros = filtros()
@@ -456,7 +501,16 @@ with tab_sentimiento:
             st.info("Sin menciones analizadas para graficar en este periodo.")
         else:
             st.altair_chart(grafico_sentimiento(datos_sentimiento, noticias))
-        st.dataframe(noticias, hide_index=True)
+        st.html('<hr class="division-marca">')
+        st.markdown("#### Noticias del periodo")
+        detalle = noticias_detalle(parametros)
+        if detalle.empty:
+            st.caption("No hay noticias sobre Rappi en este rango.")
+        else:
+            total = len(detalle)
+            st.caption(f"{total} noticia{'s' if total != 1 else ''} sobre Rappi en el periodo en el periodo definido ordenadas de la más nueva a la más antigua")
+            tabla = detalle.assign(fecha=pd.to_datetime(detalle["fecha"]).dt.strftime("%d/%m/%Y"))
+            tabla_html(tabla, {"fecha": "Fecha", "medio": "Medio", "titular": "Titular"})
     except Exception as error:
         st.error(f"No se pudo leer el sentimiento diario: {error}")
 
@@ -502,15 +556,23 @@ with tab_quejas:
         if quejas.empty:
             st.info("No hay quejas en los últimos 7 días del rango.")
         else:
+            st.altair_chart(grafico_quejas(quejas))
+            st.html('<hr class="division-marca">')
+            st.markdown("#### Algunos comentarios de los usuarios")
+            st.caption("Elige un tema para ver hasta 5 comentarios, los de más interacción primero. Correos y teléfonos ocultos.")
             ejemplos = ejemplos_quejas(semana)
-            col_grafico, col_ejemplos = st.columns([3, 2])
-            col_grafico.altair_chart(grafico_quejas(quejas))
-            with col_ejemplos:
-                for posicion, tema in enumerate(quejas["tema"].head(5)):
-                    with st.expander(f"{tema} · ejemplos", expanded=posicion == 0):
-                        for fila in ejemplos[ejemplos["tema"] == tema].itertuples():
-                            estrellas = f" · ★ {fila.calificacion:.0f}" if pd.notna(fila.calificacion) else ""
-                            st.markdown(f"> {fila.texto}")
-                            st.caption(f"{nombres_fuente[fila.fuente]}{estrellas} · {fila.fecha:%d/%m/%Y}")
+            principales = quejas.head(6)
+            etiquetas = {fila.tema: f"{fila.tema_nombre} ({fila.pct:.0%})" for fila in principales.itertuples()}
+            with st.container(key="ejemplos"):
+                elegido = st.pills(
+                    "Tema",
+                    options=list(etiquetas),
+                    format_func=lambda tema: etiquetas[tema],
+                    selection_mode="single",
+                    default=principales["tema"].iloc[0],
+                    label_visibility="collapsed",
+                )
+                tema = elegido or principales["tema"].iloc[0]
+                tabla_ejemplos(ejemplos[ejemplos["tema"] == tema])
     except Exception as error:
         st.error(f"No se pudo leer el top de quejas: {error}")
