@@ -45,6 +45,23 @@ def _a_resultado(salida: Any) -> ResultadoSentimiento:
     )
 
 
+def analizar(rutas: dict[str, str | None] | None = None, motor: Any | None = None, esquema: str | None = None) -> dict:
+    """Etapa `sentimiento` del orquestador (P2.1).
+
+    Recibe el diccionario `{fuente: ruta}` como todas las etapas, pero no lo usa: el análisis
+    lee de `clean.menciones` los registros pendientes, sean de esta corrida o de una anterior
+    que no terminó. Si algún registro elegible queda sin resultado lanza un error, igual que
+    `make nlp`, para que el pipeline no dé por buena una corrida incompleta.
+    """
+    # Import tardío: pipeline importa este módulo
+    from src.transform.nlp.pipeline import correr
+
+    resumen = correr(motor=motor, esquema=esquema)
+    if resumen["pendientes"]:
+        raise RuntimeError(f"Quedaron {resumen['pendientes']} registros sin resultado de sentimiento")
+    return resumen
+
+
 class AnalizadorSentimiento:
     """Envuelve el analizador de pysentimiento. El modelo se carga la primera vez que se usa."""
 

@@ -53,6 +53,24 @@ def _resultados(motor):
         return {f.id_registro: f for f in c.execute(select(tabla.tabla_sentimiento))}
 
 
+def test_analizar_es_la_etapa_del_orquestador(motor, monkeypatch):
+    from src.transform.nlp import pipeline, sentimiento
+
+    monkeypatch.setattr(pipeline, "AnalizadorSentimiento", Falso)
+    # Recibe el diccionario de rutas como las demás etapas y lo ignora
+    resumen = sentimiento.analizar({"news": None}, motor=motor)
+    assert resumen["procesados"] == 2 and resumen["pendientes"] == 0
+    assert set(_resultados(motor)) == {"google_play:1", "google_play:2"}
+
+
+def test_analizar_falla_si_quedan_pendientes(motor, monkeypatch):
+    from src.transform.nlp import pipeline, sentimiento
+
+    monkeypatch.setattr(pipeline, "correr", lambda **_: {"pendientes": 3})
+    with pytest.raises(RuntimeError, match="3 registros"):
+        sentimiento.analizar({}, motor=motor)
+
+
 def test_cada_registro_elegible_recibe_sentimiento_y_tema(motor):
     resumen = correr(motor=motor, analizador=Falso())
     filas = _resultados(motor)

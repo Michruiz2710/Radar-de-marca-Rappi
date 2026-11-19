@@ -48,12 +48,25 @@ Pruebas: `python -m pytest tests/nlp` (no necesitan torch).
 - El esquema sale de `PG_SCHEMA_CLEAN` (clean, clean_staging, clean_prod), como en P2.3.
 - La imagen `nlp` no está en el CI ni en el CD: construirla exige bajar torch y el modelo (más de 10 minutos). Decidir con Gabriel si entra en el CI.
 
-## Pendiente: conectarlo al flujo de Prefect (P2.1)
+## En el flujo de Prefect (P2.1 y P3.2)
 
-`flows/pipeline.py` espera una función `src.transform.nlp.sentimiento:analizar`. **Todavía no existe a propósito**: la etapa queda "pendiente" y el pipeline sigue. Si se agregara sin más, la imagen del orquestador (`flows/Dockerfile`) no tiene torch ni pysentimiento, la etapa fallaría tras la limpieza y detendría el flujo. Hay que decidir con Sara cómo correrlo: meter las dependencias en la imagen del orquestador (muy pesada), correr la imagen `nlp` como servicio aparte, o usar un worker propio.
+La etapa `sentimiento` de `flows/pipeline.py` llama a `sentimiento.analizar(rutas)`, que corre `correr()` y falla si queda algún registro elegible sin resultado. Corre **dentro del orquestador**: `flows/Dockerfile` instala torch (solo CPU), `requirements-nlp.txt` y el modelo fijado en `NLP_MODEL_REVISION`, igual que la imagen `nlp`. Si no se pasa esa variable al construir, usa la revisión de `.env.example`.
+
+- La imagen del orquestador es pesada: la primera construcción tarda más de 10 minutos y el CI y el CD tienen un límite de tiempo más largo por eso. El contenedor tiene `mem_limit: 4g`.
+- `analizar` ignora el diccionario de rutas: procesa todo lo pendiente en `clean.menciones`, también lo de corridas anteriores que no terminaron.
+- Si la etapa falla, la tarea reintenta 3 veces (es idempotente) y luego el pipeline falla y cuenta para la alerta A1.
+- `make nlp` sigue sirviendo para correr el análisis a mano o evaluar el modelo.
+- **Primera corrida con mucho atraso.** El análisis procesa unos 5 registros por segundo y cada tarea tiene un límite de 30 minutos. Con miles de menciones pendientes (por ejemplo, tras la primera extracción de Google Play o YouTube) la tarea puede agotarlo y reintentar. Conviene procesar el atraso antes, directamente en el contenedor, y después dejar que el pipeline solo analice lo nuevo:
+
+  ```bash
+  docker compose -f infra/docker-compose.yml --env-file .env --env-file config/dev.env exec orquestador python -m src.transform.nlp.pipeline
+  ```
+
+  En pruebas, 9.362 registros tardaron unos 30 minutos así; una corrida normal con registros nuevos tarda segundos.
+- **Sin `print` capturado en las etapas.** La tarea `etapa` de `flows/pipeline.py` usa `log_prints=False`. Con `True`, Prefect 3.8 desvía a los logs lo que `dill` imprime a un buffer propio: `datasets` (que usa pysentimiento) hashea funciones en cada lote con `dill.detect.nestedglobals`, que captura `stdout` y llama a `dis.dis`. Resultado: unas 13.000 líneas de código de bytes en los logs por cada 192 textos y un análisis unas 5 veces más lento (52 s contra 10,5 s). `tests/flows/test_pipeline.py` lo vigila. Las etapas informan con `logging`, así que no se pierde nada.
 
 ## Estado
 
 Hecho: clasificador de temas, sentimiento por lotes, tabla `clean.sentimiento`, pipeline idempotente, evaluación sobre texto limpio, imagen Docker y pruebas. Resultados de la evaluación en [`docs/evaluacion_nlp.md`](../../../docs/evaluacion_nlp.md).
 
-**Pendiente:** probar contra Postgres real con datos de P2.3, regenerar el informe de evaluación con texto limpio, decidir la integración con el orquestador y mejorar el diccionario de temas (acierto actual: ver el informe).
+**Pendiente:** probar contra Postgres real con datos de P2.3, regenerar el informe de evaluación con texto limpio, probar la etapa dentro de Prefect con Docker y mejorar el diccionario de temas (acierto actual: ver el informe).

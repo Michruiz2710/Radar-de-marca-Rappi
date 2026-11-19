@@ -1,0 +1,394 @@
+# Reglas de alerta A1-A7 (P3.2), generadas desde la tabla de la ruta de trabajo, más A8 (extra, no está en la ruta):
+# avisa si el Pushgateway se cae, porque sin él las demás alertas quedan ciegas.
+# P0: el sistema dejó de funcionar. P1: funciona, pero hay algo que revisar.
+# Cada regla dispara cuando su expresión devuelve un valor mayor que 0.
+# Cada una apunta a su runbook en docs/runbooks/ (anotación `runbook`).
+apiVersion: 1
+groups:
+- orgId: 1
+  name: P0 · el sistema dejó de funcionar
+  folder: Radar Rappi
+  interval: 1m
+  rules:
+  - uid: a1-fallas
+    title: A1 · Un flujo falla 2 corridas seguidas
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: max by (flujo) (fallas_consecutivas) >= 2
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: El flujo {{ $labels.flujo }} falló {{ with $values.B }}{{ .Value }}{{ end }} corridas seguidas
+      description: Revisar los logs del flujo en Prefect y reintentar a mano.
+      runbook: docs/runbooks/A1_flujo_falla.md
+    labels:
+      severidad: P0
+      alerta: A1
+  - uid: a2-google-play
+    title: A2 · Google Play extrae 0 reseñas en 6 horas
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: '(increase(registros_extraidos_total{fuente="google_play"}[6h]) == bool 0) and on() (count(registros_extraidos_total{fuente="google_play"} offset 6h) > 0)'
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: Google Play no ha traído reseñas nuevas en 6 horas
+      description: Revisar si hay bloqueo (errores 429) o un cambio en la librería google-play-scraper.
+      runbook: docs/runbooks/A2_google_play_sin_resenas.md
+    labels:
+      severidad: P0
+      alerta: A2
+  - uid: a3-sin-corridas
+    title: A3 · Ningún flujo exitoso en más del doble de su intervalo
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: (time() - ultima_corrida_exitosa_timestamp{flujo="pipeline:news"} > 4 * 3600) or (time() - ultima_corrida_exitosa_timestamp{flujo="pipeline:google_play"} > 6 * 3600) or (time() - ultima_corrida_exitosa_timestamp{flujo="pipeline:youtube"}
+          > 12 * 3600)
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: El flujo {{ $labels.flujo }} no tiene una corrida exitosa hace {{ with $values.B }}{{ humanizeDuration .Value }}{{ end }}
+      description: Verificar que Prefect y los contenedores estén arriba.
+      runbook: docs/runbooks/A3_flujo_detenido.md
+    labels:
+      severidad: P0
+      alerta: A3
+  - uid: a4-validacion-critica
+    title: A4 · Falla una validación crítica
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum(increase(validaciones_fallidas_total{severidad="critica"}[1h]))
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: Una validación crítica de calidad falló en la última hora
+      description: Revisar Data Docs. El flujo ya se detuvo.
+      runbook: docs/runbooks/A4_validacion_critica.md
+    labels:
+      severidad: P0
+      alerta: A4
+  - uid: a8-pushgateway
+    title: A8 · Prometheus no ve el Pushgateway
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: up{job="pushgateway"} == bool 0
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 1m
+    isPaused: false
+    annotations:
+      summary: Prometheus no puede leer el Pushgateway; las alertas A1 a A7 están ciegas
+      description: Sin el Pushgateway no llegan métricas nuevas y ninguna otra alerta puede dispararse. Levantarlo y revisar por qué se cayó.
+      runbook: docs/runbooks/A8_pushgateway_caido.md
+    labels:
+      severidad: P0
+      alerta: A8
+- orgId: 1
+  name: P1 · revisar
+  folder: Radar Rappi
+  interval: 1m
+  rules:
+  - uid: a5-sentimiento
+    title: A5 · Sentimiento negativo de 24 h supera el 60 %
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: max by (fuente) (sentimiento_negativo_24h_ratio) > 0.6
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: OK
+    for: 10m
+    isPaused: false
+    annotations:
+      summary: '{{ $labels.fuente }}: {{ with $values.B }}{{ humanizePercentage .Value }}{{ end }} de las menciones de 24 h son negativas'
+      description: Avisar al negocio y revisar el tema que más creció.
+      runbook: docs/runbooks/A5_sentimiento_negativo.md
+    labels:
+      severidad: P1
+      alerta: A5
+  - uid: a6-menciones
+    title: A6 · Menciones del día superan 2 veces el promedio de 7 días
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: (sum(increase(registros_extraidos_total[1d])) > 2 * (sum(increase(registros_extraidos_total[7d])) / 7)) and on() (count(registros_extraidos_total offset 7d) > 0)
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: OK
+    for: 10m
+    isPaused: false
+    annotations:
+      summary: Hoy hay {{ with $values.B }}{{ .Value }}{{ end }} menciones nuevas, más del doble del promedio diario de la semana
+      description: Revisar las noticias del día. Solo se evalúa con 7 días de historia.
+      runbook: docs/runbooks/A6_pico_de_menciones.md
+    labels:
+      severidad: P1
+      alerta: A6
+  - uid: a7-cuota-youtube
+    title: A7 · La cuota de YouTube supera el 80 %
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: cuota_youtube_usada > 8000
+        instant: true
+        range: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: reduce
+        expression: A
+        reducer: last
+        settings:
+          mode: dropNN
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: OK
+    for: 0s
+    isPaused: false
+    annotations:
+      summary: Se usaron {{ with $values.B }}{{ .Value }}{{ end }} de las 10.000 unidades diarias de la API de YouTube
+      description: Reducir las búsquedas del día.
+      runbook: docs/runbooks/A7_cuota_youtube.md
+    labels:
+      severidad: P1
+      alerta: A7

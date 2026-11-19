@@ -1,6 +1,6 @@
 # Entorno local del proyecto (P1.1): MinIO, Postgres 16, Prefect, Prometheus y Pushgateway.
 # Se usa desde la raíz con `make up` (lee el archivo .env de la raíz).
-# Grafana y Streamlit se agregan en la Semana 3 (P3.2 y P3.3).
+# Grafana (P3.2) ya está; Streamlit se agrega con P3.3.
 
 name: radar-rappi
 
@@ -254,13 +254,52 @@ services:
       - pushgateway
     restart: unless-stopped
 
+  # --- Dashboard técnico y alertas (P3.2): todo se carga desde infra/grafana (provisioning) ---
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Falta GRAFANA_ADMIN_PASSWORD en .env}
+      # Alertas por correo. Sin servidor de correo o sin destinatarios Grafana arranca igual,
+      # pero las alertas no llegan a nadie (ver infra/grafana/README.md)
+      ALERTAS_CORREO_DESTINO: ${ALERTAS_CORREO_DESTINO:-sin-destinatario@example.invalid}
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: ${GRAFANA_SMTP_HOST:-smtp.gmail.com:587}
+      GF_SMTP_USER: ${GRAFANA_SMTP_USER:-}
+      GF_SMTP_PASSWORD: ${GRAFANA_SMTP_PASSWORD:-}
+      GF_SMTP_FROM_ADDRESS: ${GRAFANA_SMTP_FROM:-${GRAFANA_SMTP_USER:-alertas@radar.local}}
+      # Solo para desarrollo: si un antivirus o proxy reemplaza el certificado de Gmail (Avast Mail Shield,
+      # por ejemplo), Grafana lo rechaza. Con true no verifica el certificado; en prod debe quedar en false.
+      GF_SMTP_SKIP_VERIFY: ${GRAFANA_SMTP_SKIP_VERIFY:-false}
+      GF_SMTP_FROM_NAME: Radar Rappi
+      # Los enlaces de los correos ("Ver alerta") usan esta dirección
+      GF_SERVER_ROOT_URL: http://localhost:${GRAFANA_PORT:-3000}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
   # --- Orquestador (P2.1): registra los flujos en Prefect y los corre según su intervalo ---
   orquestador:
     build:
       context: ..
       dockerfile: flows/Dockerfile
+      args:
+        # Vacía = el Dockerfile usa la revisión por defecto (la misma de .env.example)
+        NLP_MODEL_REVISION: ${NLP_MODEL_REVISION:-}
     image: ghcr.io/michruiz2710/radar-de-marca-rappi/orquestador:${IMAGE_TAG:-latest}
+    # La etapa de sentimiento corre aquí dentro: mismos recursos que el servicio `nlp`
+    mem_limit: 4g
     environment:
+      NLP_BATCH_SIZE: ${NLP_BATCH_SIZE:-32}
       APP_ENV: ${APP_ENV:-dev}
       PG_SCHEMA_CLEAN: ${PG_SCHEMA_CLEAN:-clean}
       PG_SCHEMA_ANALYTICS: ${PG_SCHEMA_ANALYTICS:-analytics}
@@ -315,3 +354,4 @@ volumes:
   google_play_estado:
   pushgateway_data:
   prometheus_data:
+  grafana_data:

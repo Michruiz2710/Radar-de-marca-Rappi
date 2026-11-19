@@ -73,7 +73,7 @@ Hecho: flujos por fuente, flujo principal, programación, reintentos, gancho de 
 
 **Pendiente:**
 
-- **Validación, limpieza y sentimiento:** quedan `pendiente` hasta que lleguen P2.2, P2.3 y P2.4.
+- **Sentimiento en Docker:** la etapa ya está conectada y probada con un analizador falso; falta una corrida completa de `pipeline/todas-dev` en Docker con el modelo real.
 
 **Decisiones a confirmar:**
 

@@ -1,0 +1,15 @@
+# Fuente de datos de Grafana (P3.2): el Prometheus del compose.
+# El uid fijo lo usan el dashboard y las alertas para referirse a esta fuente.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      # Prometheus lee el Pushgateway cada 30 s (ver infra/prometheus/prometheus.yml)
+      timeInterval: 30s

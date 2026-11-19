@@ -5,7 +5,8 @@ global:
   scrape_interval: 30s
   evaluation_interval: 30s
 
-# Las reglas de alerta las agrega P3.2 (Jonathan) en esta carpeta.
+# Las alertas A1-A7 (P3.2) viven en Grafana (infra/grafana/provisioning/alerting), no aquí.
+# Esta carpeta queda disponible por si algún día se prefiere evaluar reglas en Prometheus.
 rule_files:
   - /etc/prometheus/reglas/*.yml
 
