@@ -1,6 +1,6 @@
 # Entorno local del proyecto (P1.1): MinIO, Postgres 16, Prefect, Prometheus y Pushgateway.
 # Se usa desde la raíz con `make up` (lee el archivo .env de la raíz).
-# Grafana (P3.2) ya está; Streamlit se agrega con P3.3.
+# Grafana (P3.2) ya está y Streamlit (P3.3).
 
 name: radar-rappi
 
