@@ -215,9 +215,9 @@ def respuesta_a_negativas(parametros: dict) -> pd.Series:
             count(*) as negativas,
             avg(tiene_respuesta::int)::float as pct_respondidas,
             percentile_cont(0.5) within group (order by horas_hasta_respuesta)::float as mediana_horas,
-            count(*) filter (where horas_hasta_respuesta < 24) as menos_24,
-            count(*) filter (where horas_hasta_respuesta between 24 and 72) as entre_24_72,
-            count(*) filter (where horas_hasta_respuesta > 72) as mas_72
+            count(*) filter (where horas_hasta_respuesta < 1) as menos_1,
+            count(*) filter (where horas_hasta_respuesta >= 1 and horas_hasta_respuesta <= 24) as entre_1_24,
+            count(*) filter (where horas_hasta_respuesta > 24) as mas_24
         from {esquema}.fct_menciones
         where fuente = 'google_play'
             and calificacion <= 2
@@ -226,29 +226,52 @@ def respuesta_a_negativas(parametros: dict) -> pd.Series:
     return consultar(sql, parametros).iloc[0]
 
 def grafico_versiones(datos: pd.DataFrame) -> alt.LayerChart:
-    """Barras por versión coloreadas por semáforo, con reglas en 3 y 4 estrellas."""
-    barras = alt.Chart(datos).mark_bar().encode(
-        x=alt.X("version:N", title="Versión", sort=None),
-        y=alt.Y("calificacion_promedio:Q", title="Calificación promedio", scale=alt.Scale(domain=[1, 5])),
+    """Barras por versión coloreadas por semáforo, con su valor, sus reseñas y reglas en 3 y 4."""
+    datos = datos.assign(
+        etiqueta=[f"Versión {v}" for v in datos["version"]],
+        texto_resenas=[f"{n} reseñas" for n in datos["resenas"]],
+    )
+    ayuda = [
+        alt.Tooltip("version:N", title="Versión"),
+        alt.Tooltip("calificacion_promedio:Q", title="Promedio", format=".2f"),
+        alt.Tooltip("resenas:Q", title="Reseñas"),
+        alt.Tooltip("estado:N", title="Estado"),
+    ]
+    base = alt.Chart(datos).encode(
+        x=alt.X("etiqueta:N", title=None, sort=None, axis=alt.Axis(labelAngle=0, labelFontSize=13)),
+        tooltip=ayuda,
+    )
+    barras = base.mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+        y=alt.Y("calificacion_promedio:Q", title="Calificación promedio", scale=alt.Scale(domain=[0, 5])),
         color=alt.Color(
             "estado:N",
-            title="Estado",
+            title=None,
+            legend=alt.Legend(orient="top"),
             scale=alt.Scale(
                 domain=["Bien", "Atención", "Alerta", "Poca muestra"],
                 range=[color_bien, color_atencion, color_alerta, color_neutro],
             ),
         ),
-        tooltip=[
-            alt.Tooltip("version:N", title="Versión"),
-            alt.Tooltip("calificacion_promedio:Q", title="Promedio", format=".2f"),
-            alt.Tooltip("resenas:Q", title="Reseñas"),
-            alt.Tooltip("estado:N", title="Estado"),
-        ],
     )
-    reglas = alt.Chart(pd.DataFrame({"umbral": [3, 4]})).mark_rule(
-        strokeDash=[4, 4], color="#5C6068"
-    ).encode(y="umbral:Q")
-    return barras + reglas
+    valores = base.mark_text(dy=-10, fontSize=14, fontWeight="bold").encode(
+        y="calificacion_promedio:Q",
+        text=alt.Text("calificacion_promedio:Q", format=".1f"),
+    )
+    resenas = base.mark_text(baseline="bottom", dy=-8, fontSize=13, fontWeight="bold", color="#FFFFFF").encode(
+        y=alt.datum(0),
+        text="texto_resenas:N",
+    )
+    umbrales = pd.DataFrame({
+        "umbral": [3, 4],
+        "etiqueta": ["Menos de 3 estrellas: alerta", "4 estrellas o más: bien"],
+        "color": [color_alerta, color_bien],
+    })
+    reglas = alt.Chart(umbrales).mark_rule(strokeDash=[4, 4], strokeWidth=2).encode(
+        y="umbral:Q",
+        color=alt.Color("color:N", scale=None),
+        tooltip=[alt.Tooltip("etiqueta:N", title="Umbral")],
+    )
+    return (barras + valores + resenas + reglas).properties(height=340)
 
 def ultima_semana(parametros: dict) -> dict:
     """Los últimos 7 días del rango elegido (o menos si el rango es más corto)."""
@@ -479,6 +502,35 @@ def tabla_ejemplos(ejemplos: pd.DataFrame) -> None:
     )
     tabla_html(tabla, {"fecha": "Fecha", "fuente": "Fuente", "calificacion": "Estrellas", "texto": "Comentario"})
 
+def formatear_duracion(horas: float) -> str:
+    """Minutos si es menos de 1 h, horas si es menos de 2 días y días si es más."""
+    if pd.isna(horas):
+        return "—"
+    if horas < 1:
+        return f"{horas * 60:.0f} min"
+    if horas < 48:
+        return f"{horas:.1f} h".replace(".", ",")
+    return f"{horas / 24:.1f} días".replace(".", ",")
+
+def grafico_tramos(respuesta: pd.Series) -> alt.LayerChart:
+    """Respuestas por tiempo de demora, en verde, ámbar y rojo."""
+    tramos = pd.DataFrame({
+        "tramo": ["Menos de 1 h", "1 a 24 h", "Más de 24 h"],
+        "resenas": [int(respuesta["menos_1"]), int(respuesta["entre_1_24"]), int(respuesta["mas_24"])],
+        "color": [color_bien, color_atencion, color_alerta],
+    })
+    maximo = max(tramos["resenas"].max(), 1) * 1.15
+    base = alt.Chart(tramos).encode(
+        y=alt.Y("tramo:N", title=None, sort=None),
+        x=alt.X("resenas:Q", title="Reseñas respondidas", scale=alt.Scale(domain=[0, maximo], nice=False)),
+    )
+    barras = base.mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4).encode(
+        color=alt.Color("color:N", scale=None),
+        tooltip=[alt.Tooltip("tramo:N", title="Tiempo"), alt.Tooltip("resenas:Q", title="Reseñas")],
+    )
+    textos = base.mark_text(align="left", dx=4, fontWeight="bold").encode(text="resenas:Q")
+    return (barras + textos).properties(height=150)
+
 st.set_page_config(page_title="Rappi Pulse", layout="wide")
 st.html(Path(__file__).parent / "estilos.css")
 parametros = filtros()
@@ -518,10 +570,10 @@ with tab_app:
     if "google_play" not in parametros["fuentes"]:
         st.info("Esta pestaña usa solo Google Play. Agrégalo en el filtro de fuentes para verla.")
     else:
-        col_versiones, col_respuesta = st.columns([3, 2])
+        col_versiones, col_respuesta = st.columns([3, 2], gap="large")
         with col_versiones:
             st.subheader("Calificación por versión de la app")
-            st.caption(f"Últimas 5 versiones. En gris: menos de {muestra_minima} reseñas, no concluyente.")
+            st.caption(f"Últimas 5 versiones. Las líneas marcan 3 y 4 estrellas. En gris: menos de {muestra_minima} reseñas, muy pocas para sacar conclusiones.")
             try:
                 versiones = calificacion_por_version(parametros)
                 if versiones.empty:
@@ -536,14 +588,10 @@ with tab_app:
             try:
                 respuesta = respuesta_a_negativas(parametros)
                 col_mediana, col_pct = st.columns(2)
-                col_mediana.metric("Mediana de respuesta", formatear(respuesta["mediana_horas"], ".0f") + " h" if pd.notna(respuesta["mediana_horas"]) else "Sin datos")
+                col_mediana.metric("Mediana de respuesta", formatear_duracion(respuesta["mediana_horas"]))
                 col_pct.metric("% negativas respondidas", formatear(respuesta["pct_respondidas"], ".0%"))
-                tramos = pd.DataFrame({
-                    "tramo": ["Menos de 24 h", "24 a 72 h", "Más de 72 h"],
-                    "resenas": [respuesta["menos_24"], respuesta["entre_24_72"], respuesta["mas_72"]],
-                })
-                if tramos["resenas"].sum() > 0:
-                    st.bar_chart(tramos, x="tramo", y="resenas", horizontal=True, x_label="Reseñas", y_label="")
+                if respuesta["menos_1"] + respuesta["entre_1_24"] + respuesta["mas_24"] > 0:
+                    st.altair_chart(grafico_tramos(respuesta))
             except Exception as error:
                 st.error(f"No se pudo leer la respuesta a negativas: {error}")
 
