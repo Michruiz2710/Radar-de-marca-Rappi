@@ -34,12 +34,10 @@ color_neutro = "#9FA3AB"
 muestra_minima = 30
 patron_correo = re.compile(r"\S+@\S+")
 patron_telefono = re.compile(r"\+?\d[\d\s-]{6,}\d")
-reglas_estado = {
-    "negativo": "menos de 30 % · 30 a 50 % · más de 50 %",
-    "calificacion": "4,0 o más · 3,0 a 3,9 · menos de 3,0",
-}
-etiquetas_estado = {"Bien": ":green[● Bien]", "Atención": ":orange[■ Atención]", "Alerta": ":red[▲ Alerta]"}
-
+colores_estado = {"Bien": color_bien, "Atención": color_atencion, "Alerta": color_alerta, "Poca muestra": color_neutro}
+simbolos_estado = {"Bien": "●", "Atención": "■", "Alerta": "▲", "Poca muestra": "○"}
+alto_tarjeta = 220
+clases_estado = {"Bien": "bien", "Atención": "atencion", "Alerta": "alerta", "Poca muestra": "poca"}
 
 @st.cache_resource
 def obtener_motor() -> Engine:
@@ -377,65 +375,65 @@ def mostrar_veredicto(actual: pd.Series, anterior: pd.Series, tema: pd.Series | 
         tendencia = "empeoró" if cambio > 0 else "mejoró"
         detalle = f" ({cambio * 100:+.0f} pp)"
     texto = (
-        f"**{estado}: la conversación {tendencia} frente al periodo anterior.** "
+        f"**{estado}:** la conversación {tendencia} frente al periodo anterior. "
         f"El {actual['pct_negativo']:.0%} de las menciones son negativas{detalle}."
     )
     if tema is not None:
         texto += f" La queja principal es **{tema['tema']}**."
     {"Bien": st.success, "Atención": st.warning, "Alerta": st.error}[estado](texto)
 
+def nombre_tema(tema: str) -> str:
+    """'app_fallas' -> 'App fallas': sin guiones bajos y con mayúscula inicial."""
+    return tema.replace("_", " ").capitalize()
+
+def pie_tarjeta(nota: str, estado: str | None = None) -> None:
+    """Pie centrado de una tarjeta: una nota y, debajo, el estado del semáforo con su color."""
+    if estado:
+        linea_estado = f'<div class="estado-kpi" style="color: {colores_estado[estado]}">{simbolos_estado[estado]} {estado}</div>'
+    else:
+        linea_estado = '<div class="estado-kpi">&nbsp;</div>'
+    st.html(f'<div class="pie-kpi"><div>{nota}</div>{linea_estado}</div>')
 
 def mostrar_resumen(parametros: dict) -> None:
-    """Aviso de fuentes vacías, veredicto y las 4 tarjetas con delta y semáforo."""
     actual = resumen(parametros)
     anterior = resumen(periodo_anterior(parametros))
     quejas = quejas_por_tema(parametros)
     tema = None if quejas.empty else quejas.iloc[0]
-
     vacias = fuentes_sin_datos(parametros)
     if vacias and len(vacias) < len(parametros["fuentes"]):
         st.warning(f"{', '.join(vacias)} no tiene menciones en este rango. Los totales solo incluyen las demás fuentes.")
     mostrar_veredicto(actual, anterior, tema)
 
-    col_menciones, col_negativo, col_calificacion, col_tema = st.columns(4)
-    with col_menciones:
-        st.metric(
-            "Menciones totales",
-            f"{int(actual['menciones']):,}".replace(",", "."),
-            border=True,
-        )
-        st.caption("Volumen: no es bueno ni malo")
-    with col_negativo:
-        st.metric(
-            "% menciones negativas",
-            formatear(actual["pct_negativo"], ".0%"),
-            delta=diferencia(actual["pct_negativo"] * 100, anterior["pct_negativo"] * 100, "+.1f", " pp"),
-            delta_color="inverse",
-            border=True,
-        )
-        estado = estado_negativo(actual["pct_negativo"])
-        st.caption(f"{etiquetas_estado[estado]} · {reglas_estado['negativo']}" if estado else "Sin datos · sin semáforo")
-    with col_calificacion:
-        if "google_play" not in parametros["fuentes"]:
-            st.metric("Calificación promedio · Google Play", "No aplica", border=True)
-            st.caption("Agrega Google Play al filtro para verla")
-        else:
-            promedio = actual["calificacion_promedio"]
-            st.metric(
-                "Calificación promedio · Google Play",
-                "—" if pd.isna(promedio) else f"{promedio:.1f} / 5 ★",
-                delta=diferencia(promedio, anterior["calificacion_promedio"], "+.2f"),
-                border=True,
-            )
-            estado = None if pd.isna(promedio) else estado_calificacion(promedio, actual["resenas"])
-            if estado in etiquetas_estado:
-                st.caption(f"{etiquetas_estado[estado]} · {reglas_estado['calificacion']}")
-            else:
-                st.caption("Poca muestra · no concluyente" if estado else "Sin reseñas en el rango")
-    with col_tema:
-        st.metric("Tema más quejado", "—" if tema is None else tema["tema"], border=True)
-        st.caption("Sin quejas registradas" if tema is None else f"{tema['pct']:.0%} de las quejas · detalle en la pestaña Quejas")
+    estado_neg = estado_negativo(actual["pct_negativo"])
+    promedio = actual["calificacion_promedio"]
+    aplica = "google_play" in parametros["fuentes"]
+    estado_cal = estado_calificacion(promedio, actual["resenas"]) if aplica and not pd.isna(promedio) else None
 
+    col_menciones, col_negativo, col_calificacion, col_tema = st.columns(4)
+
+    with col_menciones, st.container(border=True, key="kpi_menciones", height=alto_tarjeta):
+        st.metric("Menciones totales", f"{int(actual['menciones']):,}".replace(",", "."))
+        pie_tarjeta("Volumen del periodo")
+
+    with col_negativo, st.container(border=True, key=f"kpi_negativo_{clases_estado.get(estado_neg, 'sin')}", height=alto_tarjeta):
+        st.metric("% menciones negativas", formatear(actual["pct_negativo"], ".0%"),
+                  delta=diferencia(actual["pct_negativo"] * 100, anterior["pct_negativo"] * 100, "+.1f", " pp"),
+                  delta_color="inverse")
+        pie_tarjeta("Alerta si supera el 50 %", estado_neg)
+
+    with col_calificacion, st.container(border=True, key=f"kpi_calificacion_{clases_estado.get(estado_cal, 'sin')}", height=alto_tarjeta):
+        if not aplica:
+            st.metric("★ Calificación promedio", "No aplica")
+            pie_tarjeta("Solo aplica para Google Play")
+        else:
+            st.metric("★ Calificación promedio", "—" if pd.isna(promedio) else f"{promedio:.1f} / 5",
+                      delta=diferencia(promedio, anterior["calificacion_promedio"], "+.2f"))
+            pie_tarjeta("Solo Google Play", estado_cal)
+
+    with col_tema, st.container(border=True, key="kpi_tema", height=alto_tarjeta):
+        st.metric("Tema más quejado", "—" if tema is None else nombre_tema(tema["tema"]))
+        pie_tarjeta("Sin quejas registradas" if tema is None else f"{tema['pct']:.0%} de las quejas")
+        
 st.set_page_config(page_title="Rappi Pulse", layout="wide")
 st.html(Path(__file__).parent / "estilos.css")
 parametros = filtros()

@@ -9,3 +9,52 @@
 .st-key-filtros [data-baseweb="input"] > div {
     background: #FFFFFF;
 }
+
+/* Menos espacio arriba de la página */
+[data-testid="stMainBlockContainer"] {
+    padding-top: 3.8rem;
+}
+
+/* Tarjetas del resumen: título, valor, delta y pie centrados */
+[class*="st-key-kpi_"] {
+    text-align: center;
+}
+
+[class*="st-key-kpi_"] [data-testid="stMetricLabel"],
+[class*="st-key-kpi_"] [data-testid="stMetricValue"] {
+    display: flex;
+    justify-content: center;
+}
+
+[class*="st-key-kpi_"] [data-testid="stMetricDelta"] {
+    margin: 0 auto;
+}
+
+/* Pie de las tarjetas: nota arriba y estado del semáforo abajo, centrados */
+.pie-kpi {
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #5C6068;
+}
+
+.estado-kpi {
+    font-weight: 700;
+}
+
+/* Contenido de las tarjetas centrado de arriba a abajo */
+[class*="st-key-kpi_"] {
+    height: 100%;
+    justify-content: center;
+}
+
+/* Misma altura de métrica con o sin delta, para que títulos y pies queden alineados */
+[class*="st-key-kpi_"] [data-testid="stMetric"] {
+    min-height: 118px;
+}
+
+[class*="st-key-kpi_"] { border-top: 4px solid #E3E4E7; }
+[class*="st-key-kpi_"][class*="_bien"] { border-top-color: #1E7B34; }
+[class*="st-key-kpi_"][class*="_atencion"] { border-top-color: #8F5F00; }
+[class*="st-key-kpi_"][class*="_alerta"] { border-top-color: #B42318; }
+[class*="st-key-kpi_"][class*="_poca"] { border-top-color: #9FA3AB; }
