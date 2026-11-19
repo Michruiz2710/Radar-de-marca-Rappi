@@ -11,6 +11,7 @@ import altair as alt
 import re
 from dotenv import load_dotenv
 from sqlalchemy import Engine, text
+from pathlib import Path
 
 from src.common.db import crear_motor, esquema_analytics
 
@@ -33,6 +34,12 @@ color_neutro = "#9FA3AB"
 muestra_minima = 30
 patron_correo = re.compile(r"\S+@\S+")
 patron_telefono = re.compile(r"\+?\d[\d\s-]{6,}\d")
+reglas_estado = {
+    "negativo": "menos de 30 % · 30 a 50 % · más de 50 %",
+    "calificacion": "4,0 o más · 3,0 a 3,9 · menos de 3,0",
+}
+etiquetas_estado = {"Bien": ":green[● Bien]", "Atención": ":orange[■ Atención]", "Alerta": ":red[▲ Alerta]"}
+
 
 @st.cache_resource
 def obtener_motor() -> Engine:
@@ -49,7 +56,7 @@ def resumen(parametros: dict) -> pd.Series:
     """Menciones, % negativo y calificación promedio con los filtros elegidos."""
     sql = f"""
         select
-            count(*) as menciones,
+            count(*) as menciones, count(calificacion) as resenas,
             avg((sentimiento = 'negativo')::int) filter (where analizada)::float as pct_negativo,
             avg(calificacion)::float as calificacion_promedio
         from {esquema}.fct_menciones
@@ -57,39 +64,24 @@ def resumen(parametros: dict) -> pd.Series:
     """
     return consultar(sql, parametros).iloc[0]
 
-
-def tema_mas_quejado(parametros: dict) -> str | None:
-    """Tema con más menciones negativas (sin contar las no analizadas)."""
-    sql = f"""
-        select tema
-        from {esquema}.fct_menciones
-        where sentimiento = 'negativo'
-            and tema <> 'sin_analizar'
-            and {filtro_sql}
-        group by tema
-        order by count(*) desc
-        limit 1
-    """
-    datos = consultar(sql, parametros)
-    return None if datos.empty else datos["tema"].iloc[0]
-
 def filtros() -> dict:
     """Fila de filtros arriba de la página. Devuelve los parámetros para el SQL."""
     hoy = datetime.now(zona_colombia).date()
-    col_fechas, col_fuentes = st.columns([1, 2])
-    rango = col_fechas.date_input(
+    with st.container(key="filtros"):
+        col_fechas, col_fuentes = st.columns([1, 2])
+        rango = col_fechas.date_input(
         "Rango de fechas (hora de Colombia)",
         value=(hoy - timedelta(days=13), hoy),
         max_value=hoy,
         format="DD/MM/YYYY",
-    )
-    fuentes = col_fuentes.pills(
-        "Fuente",
-        options=list(nombres_fuente),
-        format_func=nombres_fuente.get,
-        selection_mode="multi",
-        default=list(nombres_fuente),
-    )
+        )
+        fuentes = col_fuentes.pills(
+            "Fuente",
+            options=list(nombres_fuente),
+            format_func=nombres_fuente.get,
+            selection_mode="multi",
+            default=list(nombres_fuente),
+        )
     if len(rango) != 2:
         st.info("Elige la fecha final del rango.")
         st.stop()
@@ -138,7 +130,7 @@ def noticias_por_dia(parametros: dict) -> pd.DataFrame:
 def grafico_sentimiento(datos: pd.DataFrame, noticias: pd.DataFrame) -> alt.LayerChart:
     """Líneas por fuente, umbrales de 30 % y 50 % y una regla por día con noticias."""
     dominio = [nombres_fuente[f] for f in colores_fuente]
-    lineas = alt.Chart(datos).mark_line(point=True, strokeWidth=2.5).encode(
+    lineas = alt.Chart(datos).mark_line(point=True, strokeWidth=3.5).encode(
         x=alt.X("fecha:T", title=None, axis=alt.Axis(format="%d %b")),
         y=alt.Y("pct_negativo:Q", title="% negativo", axis=alt.Axis(format="%"), scale=alt.Scale(domain=[0, 1])),
         color=alt.Color("fuente_nombre:N", title="Fuente", scale=alt.Scale(domain=dominio, range=list(colores_fuente.values()))),
@@ -314,19 +306,143 @@ def grafico_quejas(datos: pd.DataFrame) -> alt.LayerChart:
     )
     return barras + etiquetas
 
+def encabezado(parametros: dict) -> None:
+    """Franja de marca con el título, el subtítulo y el rango elegido."""
+    rango = f"{parametros['desde']:%d/%m/%Y} – {parametros['hasta']:%d/%m/%Y}"
+    st.html(f"""
+        <div style="background: {color_marca}; color: #FFFFFF; border-radius: 12px;
+                    padding: 28px 36px; display: flex; flex-wrap: wrap;
+                    align-items: flex-end; justify-content: space-between; gap: 12px">
+            <div>
+                <h1 style="margin: 0; font-size: 34px; line-height: 1.1; font-weight: 700; color: #FFFFFF">
+                    Rappi Pulse: radar de marca
+                </h1>
+                <div style="font-size: 19px; font-weight: 700">
+                    Qué se dice de Rappi Colombia en Google Play, YouTube y noticias
+                </div>
+            </div>
+            <div style="font-size: 19px; font-weight: 700">{rango}</div>
+        </div>
+    """)
+
+def periodo_anterior(parametros: dict) -> dict:
+    """Mismo número de días, justo antes del rango elegido."""
+    dias = (parametros["hasta"] - parametros["desde"]).days + 1
+    return {
+        **parametros,
+        "desde": parametros["desde"] - timedelta(days=dias),
+        "hasta": parametros["desde"] - timedelta(days=1),
+    }
+
+
+def estado_negativo(pct: float) -> str | None:
+    """Semáforo del % negativo."""
+    if pd.isna(pct):
+        return None
+    if pct < 0.3:
+        return "Bien"
+    if pct <= 0.5:
+        return "Atención"
+    return "Alerta"
+
+
+def diferencia(actual: float, anterior: float, formato: str, unidad: str = "") -> str | None:
+    """Cambio absoluto, ej. '+6.0 pp' o '-0.20'."""
+    if pd.isna(actual) or pd.isna(anterior):
+        return None
+    return f"{actual - anterior:{formato}}{unidad}"
+
+
+def fuentes_sin_datos(parametros: dict) -> list[str]:
+    """Fuentes elegidas en el filtro que no tienen menciones en el rango."""
+    sql = f"""
+        select distinct fuente
+        from {esquema}.fct_menciones
+        where {filtro_sql}
+    """
+    con_datos = set(consultar(sql, parametros)["fuente"])
+    return [nombres_fuente[f] for f in parametros["fuentes"] if f not in con_datos]
+
+
+def mostrar_veredicto(actual: pd.Series, anterior: pd.Series, tema: pd.Series | None) -> None:
+    """Una frase arriba de las tarjetas: ¿la conversación va bien o mal?"""
+    estado = estado_negativo(actual["pct_negativo"])
+    if estado is None:
+        st.info("No hay menciones analizadas en este rango. Prueba ampliar las fechas.")
+        return
+    cambio = actual["pct_negativo"] - anterior["pct_negativo"]
+    if pd.isna(cambio) or abs(cambio) < 0.05:
+        tendencia, detalle = "se mantuvo estable", ""
+    else:
+        tendencia = "empeoró" if cambio > 0 else "mejoró"
+        detalle = f" ({cambio * 100:+.0f} pp)"
+    texto = (
+        f"**{estado}: la conversación {tendencia} frente al periodo anterior.** "
+        f"El {actual['pct_negativo']:.0%} de las menciones son negativas{detalle}."
+    )
+    if tema is not None:
+        texto += f" La queja principal es **{tema['tema']}**."
+    {"Bien": st.success, "Atención": st.warning, "Alerta": st.error}[estado](texto)
+
+
+def mostrar_resumen(parametros: dict) -> None:
+    """Aviso de fuentes vacías, veredicto y las 4 tarjetas con delta y semáforo."""
+    actual = resumen(parametros)
+    anterior = resumen(periodo_anterior(parametros))
+    quejas = quejas_por_tema(parametros)
+    tema = None if quejas.empty else quejas.iloc[0]
+
+    vacias = fuentes_sin_datos(parametros)
+    if vacias and len(vacias) < len(parametros["fuentes"]):
+        st.warning(f"{', '.join(vacias)} no tiene menciones en este rango. Los totales solo incluyen las demás fuentes.")
+    mostrar_veredicto(actual, anterior, tema)
+
+    col_menciones, col_negativo, col_calificacion, col_tema = st.columns(4)
+    with col_menciones:
+        st.metric(
+            "Menciones totales",
+            f"{int(actual['menciones']):,}".replace(",", "."),
+            border=True,
+        )
+        st.caption("Volumen: no es bueno ni malo")
+    with col_negativo:
+        st.metric(
+            "% menciones negativas",
+            formatear(actual["pct_negativo"], ".0%"),
+            delta=diferencia(actual["pct_negativo"] * 100, anterior["pct_negativo"] * 100, "+.1f", " pp"),
+            delta_color="inverse",
+            border=True,
+        )
+        estado = estado_negativo(actual["pct_negativo"])
+        st.caption(f"{etiquetas_estado[estado]} · {reglas_estado['negativo']}" if estado else "Sin datos · sin semáforo")
+    with col_calificacion:
+        if "google_play" not in parametros["fuentes"]:
+            st.metric("Calificación promedio · Google Play", "No aplica", border=True)
+            st.caption("Agrega Google Play al filtro para verla")
+        else:
+            promedio = actual["calificacion_promedio"]
+            st.metric(
+                "Calificación promedio · Google Play",
+                "—" if pd.isna(promedio) else f"{promedio:.1f} / 5 ★",
+                delta=diferencia(promedio, anterior["calificacion_promedio"], "+.2f"),
+                border=True,
+            )
+            estado = None if pd.isna(promedio) else estado_calificacion(promedio, actual["resenas"])
+            if estado in etiquetas_estado:
+                st.caption(f"{etiquetas_estado[estado]} · {reglas_estado['calificacion']}")
+            else:
+                st.caption("Poca muestra · no concluyente" if estado else "Sin reseñas en el rango")
+    with col_tema:
+        st.metric("Tema más quejado", "—" if tema is None else tema["tema"], border=True)
+        st.caption("Sin quejas registradas" if tema is None else f"{tema['pct']:.0%} de las quejas · detalle en la pestaña Quejas")
+
 st.set_page_config(page_title="Rappi Pulse", layout="wide")
+st.html(Path(__file__).parent / "estilos.css")
 parametros = filtros()
-st.title("Rappi Pulse: radar de marca")
-st.caption("Qué se dice de Rappi Colombia en Google Play, YouTube y noticias")
+encabezado(parametros)
 
 try:
-    datos = resumen(parametros)
-    tema = tema_mas_quejado(parametros)
-    col_menciones, col_negativo, col_calificacion, col_tema = st.columns(4)
-    col_menciones.metric("Menciones", formatear(datos["menciones"], ","))
-    col_negativo.metric("% negativo", formatear(datos["pct_negativo"], ".1%"))
-    col_calificacion.metric("Calificación promedio", formatear(datos["calificacion_promedio"], ".2f"))
-    col_tema.metric("Tema más quejado", tema or "Sin datos")
+    mostrar_resumen(parametros)
 except Exception as error:
     st.error(f"No se pudo leer {esquema}.fct_menciones: {error}")
 

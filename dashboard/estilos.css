@@ -1,0 +1,11 @@
+/* Fila de filtros sobre coral claro, integrada con la franja de marca */
+.st-key-filtros {
+    background: #FFE3D8;
+    border-radius: 12px;
+    padding: 16px 24px;
+}
+
+.st-key-filtros [data-baseweb="input"],
+.st-key-filtros [data-baseweb="input"] > div {
+    background: #FFFFFF;
+}
