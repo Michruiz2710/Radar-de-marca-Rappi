@@ -25,6 +25,12 @@ nombres_fuente = {"google_play": "Google Play", "youtube": "YouTube", "news": "N
 filtro_sql = "fecha between :desde and :hasta and fuente = any(:fuentes)"
 color_marca = "#FF4940"
 colores_fuente = {"google_play": "#FBBC05", "youtube": "#FF0000", "news": "#174EA6"}
+color_bien = "#1E7B34"
+color_atencion = "#8F5F00"
+color_alerta = "#B42318"
+color_neutro = "#9FA3AB"
+muestra_minima = 30
+
 
 @st.cache_resource
 def obtener_motor() -> Engine:
@@ -156,6 +162,83 @@ def grafico_sentimiento(datos: pd.DataFrame, noticias: pd.DataFrame) -> alt.Laye
     )
     return lineas + umbrales + eventos
 
+def calificacion_por_version(parametros: dict) -> pd.DataFrame:
+    """Calificación promedio de Google Play en las últimas 5 versiones (mayor.menor)."""
+    sql = f"""
+        select
+            version_app_corta as version,
+            avg(calificacion)::float as calificacion_promedio,
+            count(*) as resenas
+        from {esquema}.fct_menciones
+        where fuente = 'google_play'
+            and calificacion is not null
+            and version_app_corta is not null
+            and fecha between :desde and :hasta
+        group by version_app_corta
+        order by string_to_array(version_app_corta, '.')::int[] desc
+        limit 5
+    """
+    datos = consultar(sql, parametros).iloc[::-1]
+    datos["estado"] = [
+        estado_calificacion(promedio, resenas)
+        for promedio, resenas in zip(datos["calificacion_promedio"], datos["resenas"])
+    ]
+    return datos
+
+
+def estado_calificacion(promedio: float, resenas: int) -> str:
+    """Semáforo de la calificación; con poca muestra no se juzga."""
+    if resenas < muestra_minima:
+        return "Poca muestra"
+    if promedio >= 4:
+        return "Bien"
+    if promedio >= 3:
+        return "Atención"
+    return "Alerta"
+
+
+def respuesta_a_negativas(parametros: dict) -> pd.Series:
+    """Reseñas de 1 o 2 estrellas: % respondidas, mediana de horas y tramos."""
+    sql = f"""
+        select
+            count(*) as negativas,
+            avg(tiene_respuesta::int)::float as pct_respondidas,
+            percentile_cont(0.5) within group (order by horas_hasta_respuesta)::float as mediana_horas,
+            count(*) filter (where horas_hasta_respuesta < 24) as menos_24,
+            count(*) filter (where horas_hasta_respuesta between 24 and 72) as entre_24_72,
+            count(*) filter (where horas_hasta_respuesta > 72) as mas_72
+        from {esquema}.fct_menciones
+        where fuente = 'google_play'
+            and calificacion <= 2
+            and fecha between :desde and :hasta
+    """
+    return consultar(sql, parametros).iloc[0]
+
+def grafico_versiones(datos: pd.DataFrame) -> alt.LayerChart:
+    """Barras por versión coloreadas por semáforo, con reglas en 3 y 4 estrellas."""
+    barras = alt.Chart(datos).mark_bar().encode(
+        x=alt.X("version:N", title="Versión", sort=None),
+        y=alt.Y("calificacion_promedio:Q", title="Calificación promedio", scale=alt.Scale(domain=[1, 5])),
+        color=alt.Color(
+            "estado:N",
+            title="Estado",
+            scale=alt.Scale(
+                domain=["Bien", "Atención", "Alerta", "Poca muestra"],
+                range=[color_bien, color_atencion, color_alerta, color_neutro],
+            ),
+        ),
+        tooltip=[
+            alt.Tooltip("version:N", title="Versión"),
+            alt.Tooltip("calificacion_promedio:Q", title="Promedio", format=".2f"),
+            alt.Tooltip("resenas:Q", title="Reseñas"),
+            alt.Tooltip("estado:N", title="Estado"),
+        ],
+    )
+    reglas = alt.Chart(pd.DataFrame({"umbral": [3, 4]})).mark_rule(
+        strokeDash=[4, 4], color="#5C6068"
+    ).encode(y="umbral:Q")
+    return barras + reglas
+
 st.set_page_config(page_title="Rappi Pulse", layout="wide")
 parametros = filtros()
 st.title("Rappi Pulse: radar de marca")
@@ -188,3 +271,35 @@ with tab_sentimiento:
     except Exception as error:
         st.error(f"No se pudo leer el sentimiento diario: {error}")
 
+with tab_app:
+    if "google_play" not in parametros["fuentes"]:
+        st.info("Esta pestaña usa solo Google Play. Agrégalo en el filtro de fuentes para verla.")
+    else:
+        col_versiones, col_respuesta = st.columns([3, 2])
+        with col_versiones:
+            st.subheader("Calificación por versión de la app")
+            st.caption(f"Últimas 5 versiones. En gris: menos de {muestra_minima} reseñas, no concluyente.")
+            try:
+                versiones = calificacion_por_version(parametros)
+                if versiones.empty:
+                    st.info("Sin reseñas con versión en este periodo.")
+                else:
+                    st.altair_chart(grafico_versiones(versiones))
+            except Exception as error:
+                st.error(f"No se pudo leer la calificación por versión: {error}")
+        with col_respuesta:
+            st.subheader("Respuesta a reseñas negativas")
+            st.caption("Respuestas de Rappi en Google Play a reseñas de 1 o 2 estrellas.")
+            try:
+                respuesta = respuesta_a_negativas(parametros)
+                col_mediana, col_pct = st.columns(2)
+                col_mediana.metric("Mediana de respuesta", formatear(respuesta["mediana_horas"], ".0f") + " h" if pd.notna(respuesta["mediana_horas"]) else "Sin datos")
+                col_pct.metric("% negativas respondidas", formatear(respuesta["pct_respondidas"], ".0%"))
+                tramos = pd.DataFrame({
+                    "tramo": ["Menos de 24 h", "24 a 72 h", "Más de 72 h"],
+                    "resenas": [respuesta["menos_24"], respuesta["entre_24_72"], respuesta["mas_72"]],
+                })
+                if tramos["resenas"].sum() > 0:
+                    st.bar_chart(tramos, x="tramo", y="resenas", horizontal=True, x_label="Reseñas", y_label="")
+            except Exception as error:
+                st.error(f"No se pudo leer la respuesta a negativas: {error}")
