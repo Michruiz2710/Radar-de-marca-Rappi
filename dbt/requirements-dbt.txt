@@ -1,0 +1,3 @@
+# Solo para dbt (P3.4). Va aparte del requirements.txt raíz para no cargarle dbt al resto de imágenes.
+dbt-core==1.11.17
+dbt-postgres==1.11.0

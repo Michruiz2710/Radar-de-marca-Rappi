@@ -1,0 +1,17 @@
+# Punto de contacto de las alertas (P3.2): el correo del grupo.
+# Los destinatarios (ALERTAS_CORREO_DESTINO) y el servidor de correo (GRAFANA_SMTP_*) salen de .env,
+# nunca de Git. Para usar Discord en lugar de correo, o además, ver "Cambiar el punto de contacto" en README.md.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: correo-grupo
+    receivers:
+      - uid: correo-grupo
+        type: email
+        settings:
+          # Varias direcciones se separan con punto y coma
+          addresses: $ALERTAS_CORREO_DESTINO
+          singleEmail: true
+        # También avisa cuando la alerta se resuelve
+        disableResolveMessage: false

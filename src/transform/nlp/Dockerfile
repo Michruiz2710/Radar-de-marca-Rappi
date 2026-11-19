@@ -13,7 +13,9 @@ RUN pip install --no-cache-dir torch==2.5.1 --index-url https://download.pytorch
 
 # 2) resto de dependencias
 COPY src/transform/nlp/requirements-nlp.txt requirements-nlp.txt
-RUN pip install --no-cache-dir -r requirements-nlp.txt
+# El constraint evita que pip reemplace torch por la versión de PyPI (con CUDA, varios GB más)
+RUN echo "torch==2.5.1" > /tmp/constraints.txt \
+    && pip install --no-cache-dir -c /tmp/constraints.txt -r requirements-nlp.txt
 
 # 3) modelo fijado en una revisión, guardado en la imagen. Esta capa solo se rehace si cambia la revisión.
 ENV HF_HOME=/opt/hf NLP_MODEL_REVISION=${NLP_MODEL_REVISION}

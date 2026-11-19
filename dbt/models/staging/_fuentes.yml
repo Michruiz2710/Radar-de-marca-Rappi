@@ -1,0 +1,39 @@
+version: 2
+
+sources:
+  - name: clean
+    description: Capa clean (P2.3 y P2.4). El esquema cambia por entorno con PG_SCHEMA_CLEAN.
+    schema: "{{ env_var('PG_SCHEMA_CLEAN', 'clean') }}"
+    tables:
+      - name: menciones
+        description: Una fila por mención limpia (docs/contrato_clean.md). La llena la limpieza (P2.3).
+        columns:
+          - name: id_registro
+            data_tests: [unique, not_null]
+          - name: fuente
+            data_tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ["google_play", "youtube", "news"]
+          - name: fecha_publicacion
+            data_tests: [not_null]
+          - name: es_bot
+            data_tests: [not_null]
+      - name: sentimiento
+        description: Sentimiento y tema por registro (P2.4). Solo registros en español que no eran bots al analizarlos.
+        columns:
+          - name: id_registro
+            data_tests:
+              - unique
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('clean', 'menciones')
+                    field: id_registro
+          - name: sentimiento
+            data_tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ["positivo", "neutro", "negativo"]

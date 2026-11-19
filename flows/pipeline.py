@@ -37,6 +37,7 @@ ETAPAS = (
     Etapa("limpieza", "src.transform.clean.limpieza:limpiar", "P2.3"),
     Etapa("validacion_limpia", "quality.checkpoints:validar_limpia", "P2.2"),
     Etapa("sentimiento", "src.transform.nlp.sentimiento:analizar", "P2.4"),
+    Etapa("modelos", "flows.modelos:construir", "P3.4"),
 )
 
 
@@ -95,7 +96,11 @@ def contar_validaciones(resumenes) -> None:
                 obs.contar_validacion(suite, severidad, len(resumen[clave]))
 
 
-@task(name="etapa", **_opciones_tarea)
+# log_prints=False a propósito: con True, Prefect 3.8 manda a los logs hasta lo que `dill` imprime
+# a un buffer propio (dill.detect.nestedglobals captura stdout y llama dis.dis). La etapa de
+# sentimiento lo usa a través de `datasets` en cada lote: 13.000 líneas de código de bytes por
+# 192 textos y un análisis 5 veces más lento. Las etapas informan por logging, no por print.
+@task(name="etapa", log_prints=False, **_opciones_tarea)
 def correr_etapa(etapa: Etapa, rutas: dict[str, str | None]) -> str:
     logger = get_run_logger()
     funcion = resolver(etapa.destino)

@@ -95,6 +95,4 @@ python -m pytest -q tests/observability tests/flows
 
 Hecho: Prometheus y Pushgateway en el compose, las 8 métricas más las 2 de apoyo, logs JSON y la métrica de sentimiento negativo de 24 h al final del flujo. El criterio de aceptación se comprobó en Docker con corridas completas de `pipeline/todas-dev` (ver `infra/prometheus/README.md`).
 
-**Pendiente:**
-
-- **Sentimiento en el pipeline:** la etapa de sentimiento sigue `pendiente`, porque la imagen del orquestador no tiene el modelo (ver `src/transform/nlp/README.md`). Mientras no se decida cómo correrla, `sentimiento_negativo_24h_ratio` solo tiene datos después de `make nlp`.
+**Sentimiento en el pipeline:** desde P3.2 la etapa de sentimiento corre dentro del orquestador (ver `src/transform/nlp/README.md`), así que `sentimiento_negativo_24h_ratio` se llena en cada corrida y ya no hace falta `make nlp`.
