@@ -8,6 +8,7 @@
 import pandas as pd
 import streamlit as st
 import altair as alt
+import re
 from dotenv import load_dotenv
 from sqlalchemy import Engine, text
 
@@ -30,7 +31,8 @@ color_atencion = "#8F5F00"
 color_alerta = "#B42318"
 color_neutro = "#9FA3AB"
 muestra_minima = 30
-
+patron_correo = re.compile(r"\S+@\S+")
+patron_telefono = re.compile(r"\+?\d[\d\s-]{6,}\d")
 
 @st.cache_resource
 def obtener_motor() -> Engine:
@@ -239,6 +241,79 @@ def grafico_versiones(datos: pd.DataFrame) -> alt.LayerChart:
     ).encode(y="umbral:Q")
     return barras + reglas
 
+def ultima_semana(parametros: dict) -> dict:
+    """Los últimos 7 días del rango elegido (o menos si el rango es más corto)."""
+    desde = max(parametros["desde"], parametros["hasta"] - timedelta(days=6))
+    return {**parametros, "desde": desde}
+
+
+def quejas_por_tema(parametros: dict) -> pd.DataFrame:
+    """Menciones negativas por tema y su % sobre el total de negativas."""
+    sql = f"""
+        select tema, count(*) as negativas
+        from {esquema}.fct_menciones
+        where sentimiento = 'negativo'
+            and tema <> 'sin_analizar'
+            and {filtro_sql}
+        group by tema
+        order by negativas desc
+    """
+    datos = consultar(sql, parametros)
+    datos["pct"] = datos["negativas"] / datos["negativas"].sum()
+    datos["principal"] = ["sí"] + ["no"] * (len(datos) - 1) if len(datos) else []
+    return datos
+
+
+def anonimizar(texto: str) -> str:
+    """Tapa correos y teléfonos y deja el texto en una sola línea."""
+    texto = patron_correo.sub("[correo]", texto)
+    texto = patron_telefono.sub("[teléfono]", texto)
+    return " ".join(texto.split())
+
+
+def ejemplos_quejas(parametros: dict, por_tema: int = 3) -> pd.DataFrame:
+    """Hasta 3 menciones negativas por tema, las de más likes primero."""
+    sql = f"""
+        select tema, fuente, fecha, calificacion, texto
+        from (
+            select
+                tema,
+                fuente,
+                fecha,
+                calificacion,
+                left(texto_limpio, 200) as texto,
+                row_number() over (partition by tema order by likes desc nulls last, fecha desc) as orden
+            from {esquema}.fct_menciones
+            where sentimiento = 'negativo'
+                and tema <> 'sin_analizar'
+                and {filtro_sql}
+        ) as negativas
+        where orden <= :por_tema
+    """
+    datos = consultar(sql, {**parametros, "por_tema": por_tema})
+    datos["texto"] = datos["texto"].map(anonimizar)
+    return datos
+
+
+def grafico_quejas(datos: pd.DataFrame) -> alt.LayerChart:
+    """Barras horizontales de mayor a menor; la queja principal más intensa."""
+    base = alt.Chart(datos).encode(
+        y=alt.Y("tema:N", sort="-x", title=None),
+        x=alt.X("pct:Q", title="% de las quejas", axis=alt.Axis(format="%")),
+    )
+    barras = base.mark_bar(color=color_marca).encode(
+        opacity=alt.Opacity("principal:N", scale=alt.Scale(domain=["sí", "no"], range=[1, 0.75]), legend=None),
+        tooltip=[
+            alt.Tooltip("tema:N", title="Tema"),
+            alt.Tooltip("negativas:Q", title="Menciones negativas"),
+            alt.Tooltip("pct:Q", title="% de las quejas", format=".0%"),
+        ],
+    )
+    etiquetas = base.mark_text(align="left", dx=4, fontWeight="bold").encode(
+        text=alt.Text("pct:Q", format=".0%")
+    )
+    return barras + etiquetas
+
 st.set_page_config(page_title="Rappi Pulse", layout="wide")
 parametros = filtros()
 st.title("Rappi Pulse: radar de marca")
@@ -303,3 +378,25 @@ with tab_app:
                     st.bar_chart(tramos, x="tramo", y="resenas", horizontal=True, x_label="Reseñas", y_label="")
             except Exception as error:
                 st.error(f"No se pudo leer la respuesta a negativas: {error}")
+
+with tab_quejas:
+    semana = ultima_semana(parametros)
+    st.subheader("Top de quejas por tema")
+    st.caption(f"Del {semana['desde']:%d/%m} al {semana['hasta']:%d/%m}: últimos 7 días del rango. Solo menciones negativas.")
+    try:
+        quejas = quejas_por_tema(semana)
+        if quejas.empty:
+            st.info("No hay quejas en los últimos 7 días del rango.")
+        else:
+            ejemplos = ejemplos_quejas(semana)
+            col_grafico, col_ejemplos = st.columns([3, 2])
+            col_grafico.altair_chart(grafico_quejas(quejas))
+            with col_ejemplos:
+                for posicion, tema in enumerate(quejas["tema"].head(5)):
+                    with st.expander(f"{tema} · ejemplos", expanded=posicion == 0):
+                        for fila in ejemplos[ejemplos["tema"] == tema].itertuples():
+                            estrellas = f" · ★ {fila.calificacion:.0f}" if pd.notna(fila.calificacion) else ""
+                            st.markdown(f"> {fila.texto}")
+                            st.caption(f"{nombres_fuente[fila.fuente]}{estrellas} · {fila.fecha:%d/%m/%Y}")
+    except Exception as error:
+        st.error(f"No se pudo leer el top de quejas: {error}")
