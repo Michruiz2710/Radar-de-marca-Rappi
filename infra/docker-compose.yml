@@ -337,6 +337,9 @@ services:
       # Mismo volumen que scraper-google-play: así los dos comparten la marca de agua
       # y no se bajan reseñas repetidas. También guarda el conteo de fallas.
       - google_play_estado:/app/data/estado
+      # Data Docs de Great Expectations (P2.2): reportes HTML de cada validación. Quedan en
+      # data/data_docs/ del repositorio (fuera de Git) y no se pierden al reiniciar el contenedor
+      - ../data/data_docs:/app/data/data_docs
     depends_on:
       minio:
         condition: service_started
