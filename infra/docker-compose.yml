@@ -287,6 +287,30 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # --- Dashboard de negocio (P3.3) ---
+  dashboard:
+    build:
+      context: ..
+      dockerfile: dashboard/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-radar}
+      POSTGRES_USER: ${POSTGRES_USER:?Falta POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
+      PG_SCHEMA_ANALYTICS: ${PG_SCHEMA_ANALYTICS:-analytics}
+    ports:
+      - "${DASHBOARD_PORT:-8502}:8501"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   minio_data:
   postgres_data:
