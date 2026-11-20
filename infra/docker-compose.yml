@@ -1,6 +1,6 @@
 # Entorno local del proyecto (P1.1): MinIO, Postgres 16, Prefect, Prometheus y Pushgateway.
 # Se usa desde la raíz con `make up` (lee el archivo .env de la raíz).
-# Grafana (P3.2) ya está; Streamlit se agrega con P3.3.
+# Grafana (P3.2) ya está y Streamlit (P3.3).
 
 name: radar-rappi
 
@@ -346,6 +346,30 @@ services:
         condition: service_healthy
       pushgateway:
         condition: service_started
+    restart: unless-stopped
+
+  # --- Dashboard de negocio (P3.3) ---
+  dashboard:
+    build:
+      context: ..
+      dockerfile: dashboard/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-radar}
+      POSTGRES_USER: ${POSTGRES_USER:?Falta POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
+      PG_SCHEMA_ANALYTICS: ${PG_SCHEMA_ANALYTICS:-analytics}
+    ports:
+      - "${DASHBOARD_PORT:-8502}:8501"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
 volumes:
