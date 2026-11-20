@@ -102,7 +102,7 @@ Además, una sola vez:
 
 - Gabriel borra los secretos de los GitHub Environments `staging` y `prod`.
 - Quien creó la clave de la API de YouTube la revoca en Google Cloud.
-- Quien administra `radar.rappi.alertas@gmail.com` revoca la contraseña de aplicación de Grafana y cierra la cuenta.
+- Quien administra la cuenta de Gmail de las alertas revoca la contraseña de aplicación de Grafana y cierra la cuenta.
 - Se elimina la sal (`HASH_SALT`) de todos los `.env`: sin ella, los hashes que hayan quedado en cualquier copia no se pueden volver a calcular.
 - Se aplica la decisión sobre la muestra etiquetada y el repositorio.
 

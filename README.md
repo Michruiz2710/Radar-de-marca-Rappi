@@ -108,7 +108,7 @@ Los reportes de calidad de Great Expectations quedan en `data/data_docs/index.ht
 | `make test` | Pruebas automáticas (pytest) de todos los paquetes |
 | `make lint` | Estilo y errores comunes (ruff) |
 | `make validar` | Suites de Great Expectations contra datos de ejemplo correctos e incorrectos |
-| `make dbt` | 53 pruebas de dbt sobre la capa analytics |
+| `make dbt` | Construye los 9 modelos y corre sus 44 pruebas (`PASS=53` en total) |
 
 El CI corre todo esto en cada Pull Request (pruebas y lint, build de las imágenes, validaciones de calidad y modelos dbt), y `main` no acepta cambios con un check en rojo. El CD despliega en staging al fusionar en `main` y en prod al publicar una release.
 
@@ -121,7 +121,7 @@ El CI corre todo esto en cada Pull Request (pruebas y lint, build de las imágen
 | Bots marcados | 163 (1,47 %) |
 | Datos personales visibles después de limpiar | 0 |
 | Exactitud del sentimiento | 87 % contra 200 reseñas etiquetadas a mano (F1 macro 74 %) |
-| Alerta P0 en Grafana | 52 a 78 s desde la falla (criterio: menos de 5 min) |
+| Alerta P0 en Grafana | 52 a 78 s desde la falla, medido con `scripts/simular_fallo.sh` (criterio: menos de 5 min) |
 | Corrida continua | 24 horas sin intervención ni fallas |
 
 Detalle en [`src/transform/clean/README.md`](src/transform/clean/README.md), [`docs/evaluacion_nlp.md`](docs/evaluacion_nlp.md), [`infra/grafana/README.md`](infra/grafana/README.md) y [`flows/README.md`](flows/README.md).

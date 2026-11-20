@@ -75,7 +75,7 @@ Exactitud medida contra las 200 reseñas etiquetadas en [`evaluacion_nlp.md`](ev
 
 ### Capa analytics (Postgres, dbt)
 
-La construye dbt (P3.4, dueño: Gabriel) a partir de `clean.menciones` y `clean.sentimiento`. Corre como última etapa del flujo de Prefect (`flows/modelos.py`) o a mano con `make dbt`. Cada `dbt build` reconstruye las tablas y corre 53 pruebas (`unique`, `not_null`, `accepted_values`, rangos y que el resumen cuadre con clean). Retención de todo el esquema: hasta el fin del curso.
+La construye dbt (P3.4, dueño: Gabriel) a partir de `clean.menciones` y `clean.sentimiento`. Corre como última etapa del flujo de Prefect (`flows/modelos.py`) o a mano con `make dbt`. Cada `dbt build` reconstruye las tablas y corre 44 pruebas (`unique`, `not_null`, `accepted_values`, rangos y que el resumen cuadre con clean). Retención de todo el esquema: hasta el fin del curso.
 
 | Objeto | Tipo | Grano | Qué contiene | Lee | Sensibilidad |
 | --- | --- | --- | --- | --- | --- |
