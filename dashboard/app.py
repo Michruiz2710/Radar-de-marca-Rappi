@@ -60,7 +60,7 @@ def resumen(parametros: dict) -> pd.Series:
         from {esquema}.fct_menciones
         where {filtro_sql}
     """
-    return consultar(sql, parametros).iloc[0]
+    return pd.to_numeric(consultar(sql, parametros).iloc[0], errors="coerce")
 
 def filtros() -> dict:
     """Fila de filtros arriba de la página. Devuelve los parámetros para el SQL."""
@@ -68,10 +68,10 @@ def filtros() -> dict:
     with st.container(key="filtros"):
         col_fechas, col_fuentes = st.columns([1, 2])
         rango = col_fechas.date_input(
-        "Rango de fechas (hora de Colombia)",
-        value=(hoy - timedelta(days=13), hoy),
-        max_value=hoy,
-        format="DD/MM/YYYY",
+            "Rango de fechas (hora de Colombia)",
+            value=(hoy - timedelta(days=13), hoy),
+            max_value=hoy,
+            format="DD/MM/YYYY",
         )
         fuentes = col_fuentes.pills(
             "Fuente",
